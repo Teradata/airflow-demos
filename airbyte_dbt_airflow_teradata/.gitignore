@@ -1,0 +1,12 @@
+
+.idea/airbyte_dbt_airflow_teradata.iml
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/misc.xml
+.idea/modules.xml
+.idea/vcs.xml
+airbyte_dbt_airflow_teradata.egg-info/dependency_links.txt
+airbyte_dbt_airflow_teradata.egg-info/PKG-INFO
+airbyte_dbt_airflow_teradata.egg-info/requires.txt
+airbyte_dbt_airflow_teradata.egg-info/SOURCES.txt
+airbyte_dbt_airflow_teradata.egg-info/top_level.txt
+.idea/workspace.xml

@@ -1,0 +1,25 @@
+version: 2
+
+sources:
+    - name: ecommerce_demo
+      tables:
+          - name: _airbyte_raw_users
+            description: 'Simulated user data from the Faker connector.'
+            columns:
+                - name: _airbyte_ab_id
+                - name: _airbyte_data
+                - name: _airbyte_emitted_at
+
+          - name: _airbyte_raw_products
+            description: 'Simulated product data from the Faker connector.'
+            columns:
+                - name: _airbyte_ab_id
+                - name: _airbyte_data
+                - name: _airbyte_emitted_at
+
+          - name: _airbyte_raw_purchases
+            description: 'Simulated purchase data from the Faker connector.'
+            columns:
+                - name: _airbyte_ab_id
+                - name: _airbyte_data
+                - name: _airbyte_emitted_at

@@ -5,3 +5,4 @@ airbyte_dbt_airflow_teradata/.idea/misc.xml
 airbyte_dbt_airflow_teradata/.idea/modules.xml
 airbyte_dbt_airflow_teradata/.idea/vcs.xml
 airbyte_dbt_airflow_teradata/.idea/workspace.xml
+airbyte_dbt_airflow_teradata/dbt_project/.idea/dbt_project.iml
