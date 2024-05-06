@@ -31,7 +31,7 @@ models:
           - name: time_to_purchase_seconds
           - name: returned_at
 
-    - name: user_demographics
+    - name: customer_demographics
       columns:
           - name: gender
             tests:

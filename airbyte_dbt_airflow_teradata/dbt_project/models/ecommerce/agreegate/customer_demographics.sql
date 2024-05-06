@@ -5,7 +5,7 @@ WITH base AS (
     academic_degree,
     nationality,
     age
-  FROM {{ ref('stg_users') }}
+  FROM {{ ref('stg_customers') }}
 )
 
 SELECT 
@@ -13,6 +13,6 @@ SELECT
   academic_degree,
   nationality,
   AVG(age) AS average_age,
-  COUNT(user_id) AS user_count
+  COUNT(user_id) AS customer_count
 FROM base
 GROUP BY 1, 2, 3

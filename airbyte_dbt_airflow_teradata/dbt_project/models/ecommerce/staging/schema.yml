@@ -1,7 +1,7 @@
 version: 2
 
 models:
-    - name: stg_users
+    - name: stg_customers
       columns:
           - name: id
             tests:
