@@ -98,7 +98,7 @@ That’s it! Your connection is set up and ready to go! 🎉
 
    Move to the directory containing the dbt configuration:
    ```bash
-   cd ../../dbt_project
+   cd dbt_project
    ```
 
 2. **Update Connection Details**:
