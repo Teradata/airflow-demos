@@ -136,7 +136,7 @@ Let's set up Airflow for our project, following the steps below. We are basing o
 2. **Set Environment Variables**:
 
    - Open the `.env.example` file located in the `orchestration` directory.
-   - Rename the file from `.env.example` to `.env` after filling in the details.
+   - Rename the file from `.env.example` to `.env`.
 
 3. **Build the custom Airflow image**:
 
