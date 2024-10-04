@@ -26,18 +26,12 @@ And here are the transformations happening when the dbt DAG is executed:
 Before you embark on this integration, ensure you have the following set up and ready:
 
 1. **Python 3.10 or later**: If not installed, download and install it from [Python's official website](https://www.python.org/downloads/).
-2. Install pip
-   ```bash
-   apt install python3-pip
-   ```
-4. **Docker and Docker Compose (Docker Desktop)**: Install [Docker](https://docs.docker.com/get-docker/) following the official documentation for your specific OS.
-5. **Airbyte OSS version**: Deploy the open-source version of Airbyte locally. Follow the installation instructions from the [Airbyte Documentation](https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart).
-6. **Teradata Vantage Instance** Request test Teradata Vantage instance from https://clearscape.teradata.com/
-7. Install dbt-teradata
-   ```bash
-   pip install dbt-core>=1.8.0
-   pip install dbt-teradata
-   ```
+
+2. **Docker and Docker Compose (Docker Desktop)**: Install [Docker](https://docs.docker.com/get-docker/) following the official documentation for your specific OS.
+
+3. **Airbyte OSS version**: Deploy the open-source version of Airbyte locally. Follow the installation instructions from the [Airbyte Documentation](https://docs.airbyte.com/quickstart/deploy-airbyte/).
+
+4. **Teradata Vantage Instance** Request test Teradata Vantage instance from https://clearscape.teradata.com/
 
 ## 1. Setting an environment for your project
 
@@ -45,18 +39,25 @@ Get the project up and running on your local machine by following these steps:
 
 1. **Clone the repository (Clone only this quickstart)**:  
    ```bash
-   git clone https://github.com/teradata/quickstarts.git
+   git clone --filter=blob:none --sparse  https://github.com/teradata/quickstarts.git
    ```
 
    ```bash
    cd quickstarts
    ```
+
+   ```bash
+   git sparse-checkout add airbyte_dbt_airflow_teradata
+   ```
+
 2. **Navigate to the directory**:  
    ```bash
    cd airbyte_dbt_airflow_teradata
    ```
 
    At this point you can view the code in your preferred IDE. 
+   
+   The next steps are only necessary if want to develop or test the dbt models locally, since Airbyte and Airflow are running on Docker.
 
 ## 2. Setting up Teradata Instance
 
@@ -64,15 +65,8 @@ Follow the instructions - https://quickstarts.teradata.com/getting-started-with-
 
 ## Setting Up Airbyte Instance
 
-Deploy the open-source version of Airbyte locally. Follow the installation instructions from the [Airbyte Documentation](https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart).
+Deploy the open-source version of Airbyte locally. Follow the installation instructions from the [Airbyte Documentation](https://docs.airbyte.com/quickstart/deploy-airbyte/).
 
----
-
-**NOTE**
-If you can't log in because Airbyte is running on HTTP, please refer to the following page for a solution:
-https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart#running-over-http
-
----
 
 ## 3. Setting Up Airbyte Connectors
 
@@ -109,7 +103,7 @@ That’s it! Your connection is set up and ready to go! 🎉
 
    Move to the directory containing the dbt configuration:
    ```bash
-   cd dbt_project
+   cd ../../dbt_project
    ```
 
 2. **Update Connection Details**:
@@ -122,7 +116,7 @@ That’s it! Your connection is set up and ready to go! 🎉
      - **password**: database password.
 
 3. **Test the Connection (Optional)**:
-   You can test the connection to your Teadata instance using the following command. Run **dbt debug** from dbt_project directory
+   You can test the connection to your Teadata instance using the following command. Just take into account that you would need to provide the local path to your service account key file instead.
    
    ```bash
    dbt debug
@@ -143,7 +137,7 @@ Let's set up Airflow for our project, following the steps below. We are basing o
 2. **Set Environment Variables**:
 
    - Open the `.env.example` file located in the `orchestration` directory.
-   - Rename the file from `.env.example` to `.env`.
+   - Rename the file from `.env.example` to `.env` after filling in the details.
 
 3. **Build the custom Airflow image**:
 

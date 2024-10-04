@@ -10,4 +10,4 @@ select
 	 CAST (_airbyte_data.JSONExtractValue('$.created_at')  AS timestamp) as created_at,
 	 CAST (_airbyte_data.JSONExtractValue('$.updated_at')  AS timestamp) as updated_at,
     _airbyte_emitted_at as _airbyte_extracted_at
-from {{ source('airbyte_airflow_dbt_demo', '_airbyte_raw_customers') }} as table_alias
+from {{ source('airbyte_td', '_airbyte_raw_users') }} as table_alias
