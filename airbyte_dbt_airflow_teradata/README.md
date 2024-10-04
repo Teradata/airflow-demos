@@ -57,8 +57,6 @@ Get the project up and running on your local machine by following these steps:
    ```
 
    At this point you can view the code in your preferred IDE. 
-   
-   The next steps are only necessary if want to develop or test the dbt models locally, since Airbyte and Airflow are running on Docker.
 
 ## 2. Setting up Teradata Instance
 
