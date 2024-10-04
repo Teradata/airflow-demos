@@ -26,12 +26,18 @@ And here are the transformations happening when the dbt DAG is executed:
 Before you embark on this integration, ensure you have the following set up and ready:
 
 1. **Python 3.10 or later**: If not installed, download and install it from [Python's official website](https://www.python.org/downloads/).
-
-2. **Docker and Docker Compose (Docker Desktop)**: Install [Docker](https://docs.docker.com/get-docker/) following the official documentation for your specific OS.
-
-3. **Airbyte OSS version**: Deploy the open-source version of Airbyte locally. Follow the installation instructions from the [Airbyte Documentation](https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart).
-
-4. **Teradata Vantage Instance** Request test Teradata Vantage instance from https://clearscape.teradata.com/
+2. Install pip
+   ```bash
+   apt install python3-pip
+   ```
+4. **Docker and Docker Compose (Docker Desktop)**: Install [Docker](https://docs.docker.com/get-docker/) following the official documentation for your specific OS.
+5. **Airbyte OSS version**: Deploy the open-source version of Airbyte locally. Follow the installation instructions from the [Airbyte Documentation](https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart).
+6. **Teradata Vantage Instance** Request test Teradata Vantage instance from https://clearscape.teradata.com/
+7. Install dbt-teradata
+   ```bash
+   pip install dbt-core>=1.8.0
+   pip install dbt-teradata
+   ```
 
 ## 1. Setting an environment for your project
 
