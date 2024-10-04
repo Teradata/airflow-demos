@@ -2,7 +2,7 @@
 target/
 dbt_packages/
 logs/
-
+dbt_env/
 #Desktop Services Store
 .DS_Store
 

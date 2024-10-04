@@ -1,6 +1,6 @@
-dbt-teradata~=1.7.1
+dbt-core~=1.8.0
+dbt-teradata
 apache-airflow-providers-teradata~=2.0.0
-apache-airflow-providers-airbyte~=4.0.0
-
+apache-airflow-providers-airbyte~=3.3.2
 pendulum~=3.0.0
 Flask~=2.2.5

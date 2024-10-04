@@ -10,3 +10,4 @@ airbyte_dbt_airflow_teradata.egg-info/requires.txt
 airbyte_dbt_airflow_teradata.egg-info/SOURCES.txt
 airbyte_dbt_airflow_teradata.egg-info/top_level.txt
 .idea/workspace.xml
+dbt_project/dbt_env
