@@ -29,7 +29,7 @@ Before you embark on this integration, ensure you have the following set up and 
 
 2. **Docker and Docker Compose (Docker Desktop)**: Install [Docker](https://docs.docker.com/get-docker/) following the official documentation for your specific OS.
 
-3. **Airbyte OSS version**: Deploy the open-source version of Airbyte locally. Follow the installation instructions from the [Airbyte Documentation](https://docs.airbyte.com/quickstart/deploy-airbyte/).
+3. **Airbyte OSS version**: Deploy the open-source version of Airbyte locally. Follow the installation instructions from the [Airbyte Documentation](https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart).
 
 4. **Teradata Vantage Instance** Request test Teradata Vantage instance from https://clearscape.teradata.com/
 
