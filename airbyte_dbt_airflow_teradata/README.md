@@ -117,7 +117,7 @@ That’s it! Your connection is set up and ready to go! 🎉
      - **password**: database password.
 
 3. **Test the Connection (Optional)**:
-   You can test the connection to your Teadata instance using the following command. Just take into account that you would need to provide the local path to your service account key file instead.
+   You can test the connection to your Teadata instance using the following command. Run **dbt debug** from dbt_project directory
    
    ```bash
    dbt debug
