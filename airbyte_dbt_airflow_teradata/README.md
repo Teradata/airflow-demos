@@ -60,7 +60,7 @@ Follow the instructions - https://quickstarts.teradata.com/getting-started-with-
 
 ## Setting Up Airbyte Instance
 
-Deploy the open-source version of Airbyte locally. Follow the installation instructions from the [Airbyte Documentation](https://docs.airbyte.com/quickstart/deploy-airbyte/).
+Deploy the open-source version of Airbyte locally. Follow the installation instructions from the [Airbyte Documentation](https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart).
 
 
 ## 3. Setting Up Airbyte Connectors
