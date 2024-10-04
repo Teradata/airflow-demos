@@ -39,17 +39,12 @@ Get the project up and running on your local machine by following these steps:
 
 1. **Clone the repository (Clone only this quickstart)**:  
    ```bash
-   git clone --filter=blob:none --sparse  https://github.com/teradata/quickstarts.git
+   git clone https://github.com/teradata/quickstarts.git
    ```
 
    ```bash
    cd quickstarts
    ```
-
-   ```bash
-   git sparse-checkout add airbyte_dbt_airflow_teradata
-   ```
-
 2. **Navigate to the directory**:  
    ```bash
    cd airbyte_dbt_airflow_teradata
