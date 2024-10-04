@@ -66,6 +66,13 @@ Follow the instructions - https://quickstarts.teradata.com/getting-started-with-
 
 Deploy the open-source version of Airbyte locally. Follow the installation instructions from the [Airbyte Documentation](https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart).
 
+---
+
+**NOTE**
+If you can't log in because Airbyte is running on HTTP, please refer to the following page for a solution:
+https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart#running-over-http
+
+---
 
 ## 3. Setting Up Airbyte Connectors
 
