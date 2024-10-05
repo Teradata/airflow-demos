@@ -193,7 +193,8 @@ Congratulations! You've successfully run an end-to-end workflow with Airflow, db
 
 Once you've gone through the steps above, you should have a working Airbyte, dbt and Airflow (ADA) Stack with Teradata. You can use this as a starting point for your project, and adapt it to your needs.
 
-##8. Troubleshooting
+
+## 8. Troubleshooting
 
 Run below command for below error
 ```bash
