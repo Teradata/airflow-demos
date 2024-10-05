@@ -33,7 +33,7 @@ Before you embark on this integration, ensure you have the following set up and 
 
 Get the project up and running on your local machine by following these steps:
 
-1. **Clone the repository **:  
+1. **Clone the repository**:  
    ```bash
    git clone https://github.com/Teradata/airflow-demos.git
    ```
@@ -59,6 +59,7 @@ Deploy the open-source version of Airbyte locally. Follow the installation instr
 ---
 
 **NOTE**
+
 If you can't log in because Airbyte is running on HTTP, please refer to the following page for a solution:
 https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart#running-over-http
 
@@ -80,6 +81,10 @@ Start by launching the Airbyte UI by going to http://localhost:8000/ in your bro
    - Go to the Destinations tab and click on `+ New destination`.
    - Search for “teradata” using the search bar and select `Teradata Vantage`.
    - Enter the connection details as needed.
+     - Host: Teradata instance hostname to connect to.
+     - User: Specify the user name to connect.
+     - Password: Specify the password to connect.
+     - Default Schema: ecommerce
    - Click on `Set up destination`.
 
 3. **Create a connection**:
@@ -93,8 +98,6 @@ That’s it! Your connection is set up and ready to go! 🎉
 
 ## 4. Setting Up the dbt Project
 
-[dbt (data build tool)](https://www.getdbt.com/) allows you to transform your data by writing, documenting, and executing SQL workflows. Setting up the dbt project requires specifying connection details for your data platform, in this case, Teradata. Here’s a step-by-step guide to help you set this up:
-
 1. **Navigate to the dbt Project Directory**:
 
    Move to the directory containing the dbt configuration:
@@ -103,7 +106,8 @@ That’s it! Your connection is set up and ready to go! 🎉
    ```
 
 2. **Update faker schema Details**:
-   Update the fake sources schema, where Airbyte transfer data from faker source to Teradata. Update `schema` field under `sources` section with schema name used in Airbyte Teradata connection.
+
+   Update `schema` field under `sources` section with schema name used in Airbyte Destination Teradata connection. Default is `ecommerce`
 
 ## 5. Setting Up Airflow
 
@@ -144,25 +148,24 @@ Let's set up Airflow for our project, following the steps below. We are basing o
 
       Click on the `+` button to create a new connection and fill in the following details to create an Airbyte connection:
 
-      - **Connection Id**: The name of the connection, this will be used in the DAGs responsible for triggering Airbyte syncs. Name it `airbyte_connection`.
+      - **Connection Id**: Unique ID of Airbyte Connection, this will be used in the DAGs responsible for triggering Airbyte syncs. Name it `airbyte_connection`.
       - **Connection Type**: The type of the connection. In this case, select `Airbyte`.
-      - **Host**: The host of the Airbyte instance. Since we're running it locally, use `airbyte-proxy`, which is the name of the container running Airbyte. In case you have a remote instance, you can use the URL of the instance.
-      - **Port**: The port of the Airbyte instance. By default the API is exposed on port `8001`.
-      - **Login**: If you're using the proxy (it's used by default in the official Airbyte Docker Compose file), this is required. By default it's `airbyte`.
-      - **Password**: If you're using the proxy (it's used by default in the official Airbyte Docker Compose file), this is required. By default it's `password`.
+      - **Host**: The host of the Airbyte instance. Since we're running it locally, use `host.docker.internal`. In case you have a remote instance, you can use the URL of the instance.
+      - **Port**: The port of the Airbyte instance. By default the API is exposed on port `8000`.
+      - **Login**: Provide email configured through airbyte `abctl`
+      - **Password**: Provide password configured through airbyte `abctl`. Refer https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart
 
       Click on the `Test` button, and make sure you get a `Connection successfully tested` message at the top. Then, you can `Save` the connection.
 
    **5.2. Create Teradata Connection**:
 
       Click on the `+` button to create a new connection and fill in the following details to create Teradata connection:
-
-      - **Connection Id**: The name of the connection, this will be used in the DAG to connect to Teradata from dbt project. Name it `teradata_connection`.
-      - **Connection Type**: The type of the connection. In this case, select `Teradata`.
-      - **Host**: Teradata instance hostname
-      - **Database**: Specify the name of schema where dbt process the tables. Provide schema name where airbyte transfer data from faker source.
-      - **Login**: Specify Teradata user name.
-      - **Password**: Specify Teradata password
+      - **Connection Id**: Unique ID of Teradata Connection. Name it `teradata_connection`.
+      - **Connection Type**: Type of the system. Select Teradata.
+      - **Database Server URL (required)**: Teradata instance hostname to connect to.
+      - **Database (optional)**: Specify the name of the database to connect to. Specify `ecommerce`
+      - **Login (required)**: Specify the user name to connect.
+      - **Password (required)**: Specify the password to connect.
 
       Click on the `Test` button, and make sure you get a `Connection successfully tested` message at the top. Then, you can `Save` the connection.
 
