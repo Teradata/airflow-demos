@@ -199,3 +199,16 @@ Congratulations! You've successfully run an end-to-end workflow with Airflow, db
 ## 7. Next Steps
 
 Once you've gone through the steps above, you should have a working Airbyte, dbt and Airflow (ADA) Stack with Teradata. You can use this as a starting point for your project, and adapt it to your needs.
+
+##8. Troubleshooting
+
+Run below command for below error
+```bash
+sudo usermod -a -G docker  $USER
+```
+---
+
+**NOTE**
+ unable to determine docker installation status: error communicating with docker: unable to create client: error communicating with docker: unable to create docker client: unable to ping docker client: permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Head "http://%2Fvar%2Frun%2Fdocker.sock/_ping": dial unix /var/run/docker.sock: connect: permission denied
+
+ ---
