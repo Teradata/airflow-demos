@@ -91,36 +91,7 @@ Start by launching the Airbyte UI by going to http://localhost:8000/ in your bro
 
 That’s it! Your connection is set up and ready to go! 🎉 
 
-## 4. Setting Up the dbt Project
-
-[dbt (data build tool)](https://www.getdbt.com/) allows you to transform your data by writing, documenting, and executing SQL workflows. Setting up the dbt project requires specifying connection details for your data platform, in this case, Teradata. Here’s a step-by-step guide to help you set this up:
-
-1. **Navigate to the dbt Project Directory**:
-
-   Move to the directory containing the dbt configuration:
-   ```bash
-   cd dbt_project
-   ```
-
-2. **Update Connection Details**:
-
-   - You'll find a `profiles.yml` file within the directory. This file contains configurations for dbt to connect with your data platform. Update this file with your Teradata connection details. 
-   - Provide below details
-     - **host**: Teradata Instance host name
-     - **schema**: database name. Provide this database name in the `database` field of the `/models/ecommerce/sources/faker_sources.yml` file.
-     - **user**: database user.
-     - **password**: database password.
-
-3. **Test the Connection (Optional)**:
-   You can test the connection to your Teadata instance using the following command. Run **dbt debug** from dbt_project directory
-   
-   ```bash
-   dbt debug
-   ```
-   
-   If everything is set up correctly, this command should report a successful connection to Teradata 🎉.
-
-## 5. Setting Up Airflow
+## 4. Setting Up Airflow
 
 Let's set up Airflow for our project, following the steps below. We are basing our setup on the Running Airflow in Docker guide, with some customizations:
 
@@ -182,6 +153,35 @@ Let's set up Airflow for our project, following the steps below. We are basing o
    - Update the `connection_id` in the `extract_data` task within `orchestration/airflow/dags/elt_dag.py` with this id.
 
    That's it! Airflow has been configured to work with dbt and Airbyte. 🎉 
+
+## 5. Setting Up the dbt Project
+
+[dbt (data build tool)](https://www.getdbt.com/) allows you to transform your data by writing, documenting, and executing SQL workflows. Setting up the dbt project requires specifying connection details for your data platform, in this case, Teradata. Here’s a step-by-step guide to help you set this up:
+
+1. **Navigate to the dbt Project Directory**:
+
+   Move to the directory containing the dbt configuration:
+   ```bash
+   cd dbt_project
+   ```
+
+2. **Update Connection Details**:
+
+   - You'll find a `profiles.yml` file within the directory. This file contains configurations for dbt to connect with your data platform. Update this file with your Teradata connection details. 
+   - Provide below details
+     - **host**: Teradata Instance host name
+     - **schema**: database name. Provide this database name in the `database` field of the `/models/ecommerce/sources/faker_sources.yml` file.
+     - **user**: database user.
+     - **password**: database password.
+
+3. **Test the Connection (Optional)**:
+   You can test the connection to your Teadata instance using the following command. Run **dbt debug** from dbt_project directory
+   
+   ```bash
+   dbt debug
+   ```
+   
+   If everything is set up correctly, this command should report a successful connection to Teradata 🎉.
 
 ## 6. Orchestrating with Airflow
 Now that everything is set up, it's time to run your data pipeline!
