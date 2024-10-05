@@ -43,13 +43,9 @@ Get the project up and running on your local machine by following these steps:
    ```bash
    git clone https://github.com/Teradata/airflow-demos.git
    ```
-
-   ```bash
-   cd airflow-demos
-   ```
 - **Navigate to the directory**:  
    ```bash
-   cd airbyte_dbt_airflow_teradata
+   cd airflow-demos/airbyte_dbt_airflow_teradata
    ```
 
    At this point you can view the code in your preferred IDE. 
