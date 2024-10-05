@@ -1,6 +1,5 @@
-dbt-teradata~=1.7.1
-apache-airflow-providers-teradata~=2.0.0
-apache-airflow-providers-airbyte~=4.0.0
-
-pendulum~=3.0.0
-Flask~=2.2.5
+dbt-core
+astronomer-cosmos
+dbt-teradata
+apache-airflow-providers-airbyte~=3.3.2
+apache-airflow-providers-teradata

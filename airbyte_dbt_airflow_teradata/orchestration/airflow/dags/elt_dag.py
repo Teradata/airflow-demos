@@ -3,11 +3,12 @@ from airflow.decorators import dag
 from airflow.providers.airbyte.operators.airbyte import AirbyteTriggerSyncOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
-from airflow.operators.bash import BashOperator
-from airflow.models import Variable
-# Define the ELT DAG
+from cosmos import DbtDag
+from cosmos.config import RenderConfig
 
-dbt_dir = Variable.get("dbt_base_dir")
+from dbt_config import project_config, profile_config
+
+
 
 @dag(
     dag_id="elt_dag",
@@ -46,21 +47,14 @@ def extract_and_transform():
 extract_and_transform_dag = extract_and_transform()
 
 # Define dbt transform
-@dag(
+dbt_cosmos_dag = DbtDag(
     dag_id="dbt_ecommerce",
     start_date=datetime(2023, 10, 1),
-    tags=["dbt", "teradata", "ecommerce"],
+    tags=["dbt", "ecommerce"],
     catchup=False,
-) 
-def transform():
-
-    transform_data = BashOperator(
-        task_id="transform_data",
-        bash_command="dbt run --profiles-dir {{ dbt_dir }} --project-dir {{ dbt_dir }} -s path:models/ecommerce"
-    )
+    project_config=project_config,
+    profile_config=profile_config,
+    render_config=RenderConfig(select=["path:models/ecommerce"]),
+)
     
-    transform_data
-
-
-# Instantiate the dbt DAG
-transform()
+dbt_cosmos_dag

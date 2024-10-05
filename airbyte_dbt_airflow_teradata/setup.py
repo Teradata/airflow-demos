@@ -5,11 +5,10 @@ setup(
     packages=find_packages(),
     install_requires=[
         "dbt-teradata",
-        "apache-airflow-providers-teradata",
+        "astronomer-cosmos",
         "apache-airflow-providers-airbyte",
         "apache-airflow",
+        "apache-airflow-providers-teradata"
     ],
     extras_require={"dev": ["pytest"]},
 )
-
-
