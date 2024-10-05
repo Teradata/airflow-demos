@@ -91,7 +91,21 @@ Start by launching the Airbyte UI by going to http://localhost:8000/ in your bro
 
 That’s it! Your connection is set up and ready to go! 🎉 
 
-## 4. Setting Up Airflow
+## 4. Setting Up the dbt Project
+
+[dbt (data build tool)](https://www.getdbt.com/) allows you to transform your data by writing, documenting, and executing SQL workflows. Setting up the dbt project requires specifying connection details for your data platform, in this case, Teradata. Here’s a step-by-step guide to help you set this up:
+
+1. **Navigate to the dbt Project Directory**:
+
+   Move to the directory containing the dbt configuration:
+   ```bash
+   cd dbt_project
+   ```
+
+2. **Update faker schema Details**:
+   Update the fake sources schema, where Airbyte transfer data from faker source to Teradata. Update `schema` field under `sources` section with schema name used in Airbyte Teradata connection.
+
+## 5. Setting Up Airflow
 
 Let's set up Airflow for our project, following the steps below. We are basing our setup on the Running Airflow in Docker guide, with some customizations:
 
@@ -103,7 +117,6 @@ Let's set up Airflow for our project, following the steps below. We are basing o
 
 2. **Set Environment Variables**:
 
-   - Open the `.env.example` file located in the `orchestration` directory.
    - Rename the file from `.env.example` to `.env`.
 
 3. **Build the custom Airflow image**:
@@ -140,11 +153,20 @@ Let's set up Airflow for our project, following the steps below. We are basing o
 
       Click on the `Test` button, and make sure you get a `Connection successfully tested` message at the top. Then, you can `Save` the connection.
 
-6. **Integrate dbt with Airflow**:
+   **5.2. Create Teradata Connection**:
 
-   
+      Click on the `+` button to create a new connection and fill in the following details to create Teradata connection:
 
-7. **Link Airbyte connection to the Airflow DAG**:
+      - **Connection Id**: The name of the connection, this will be used in the DAG to connect to Teradata from dbt project. Name it `teradata_connection`.
+      - **Connection Type**: The type of the connection. In this case, select `Teradata`.
+      - **Host**: Teradata instance hostname
+      - **Database**: Specify the name of schema where dbt process the tables. Provide schema name where airbyte transfer data from faker source.
+      - **Login**: Specify Teradata user name.
+      - **Password**: Specify Teradata password
+
+      Click on the `Test` button, and make sure you get a `Connection successfully tested` message at the top. Then, you can `Save` the connection.
+
+6. **Link Airbyte connection to the Airflow DAG**:
 
    The last step being being able to execute the DAG in Airflow, is to include the `connection_id` from Airbyte:
 
@@ -152,36 +174,7 @@ Let's set up Airflow for our project, following the steps below. We are basing o
    - In the "Connections" tab, select the "Faker to Teradata" connection and copy its connection id from the URL.
    - Update the `connection_id` in the `extract_data` task within `orchestration/airflow/dags/elt_dag.py` with this id.
 
-   That's it! Airflow has been configured to work with dbt and Airbyte. 🎉 
-
-## 5. Setting Up the dbt Project
-
-[dbt (data build tool)](https://www.getdbt.com/) allows you to transform your data by writing, documenting, and executing SQL workflows. Setting up the dbt project requires specifying connection details for your data platform, in this case, Teradata. Here’s a step-by-step guide to help you set this up:
-
-1. **Navigate to the dbt Project Directory**:
-
-   Move to the directory containing the dbt configuration:
-   ```bash
-   cd dbt_project
-   ```
-
-2. **Update Connection Details**:
-
-   - You'll find a `profiles.yml` file within the directory. This file contains configurations for dbt to connect with your data platform. Update this file with your Teradata connection details. 
-   - Provide below details
-     - **host**: Teradata Instance host name
-     - **schema**: database name. Provide this database name in the `database` field of the `/models/ecommerce/sources/faker_sources.yml` file.
-     - **user**: database user.
-     - **password**: database password.
-
-3. **Test the Connection (Optional)**:
-   You can test the connection to your Teadata instance using the following command. Run **dbt debug** from dbt_project directory
-   
-   ```bash
-   dbt debug
-   ```
-   
-   If everything is set up correctly, this command should report a successful connection to Teradata 🎉.
+   That's it! Airflow has been configured to work with dbt and Airbyte. 🎉
 
 ## 6. Orchestrating with Airflow
 Now that everything is set up, it's time to run your data pipeline!
@@ -189,10 +182,10 @@ Now that everything is set up, it's time to run your data pipeline!
 - In the Airflow UI, go to the "DAGs" section.
 - Locate `elt_dag` and click on "Trigger DAG" under the "Actions" column.
 
-This will initiate the complete data pipeline, starting with the Airbyte sync from Faker to Teradata, followed by dbt transforming the raw data into `staging` and `marts` models.
+This will initiate the complete data pipeline, starting with the Airbyte sync from Faker to Teradata, followed by dbt transforming the raw data into `staging` and `agreegate` models.
 
 - Confirm the sync status in the Airbyte UI.
-- After dbt jobs completion, check the Teradata to see the newly created views in the `transformed_data` dataset. This can be done by using Teradata Studio or other database client UI tools.
+- After dbt jobs completion, check the Teradata to see the newly created views and tables in the specified schema. This can be done by using Teradata Studio or other database client UI tools.
 
 Congratulations! You've successfully run an end-to-end workflow with Airflow, dbt and Airbyte. 🎉
 
