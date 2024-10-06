@@ -34,7 +34,7 @@ def extract_and_transform():
     # Trigger for dbt DAG
     trigger_dbt_dag = TriggerDagRunOperator(
         task_id="trigger_dbt_dag",
-        trigger_dag_id="dbt_job_trigger",
+        trigger_dag_id="dbt_dag",
         wait_for_completion=True,
         poke_interval=30,
     )
