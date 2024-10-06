@@ -1,6 +1,6 @@
 select
     CAST (_airbyte_data.JSONExtractValue('$.id')  AS int)  as id,
-    CAST (_airbyte_data.JSONExtractValue('$.year')   AS int) as myear,
+    CAST (_airbyte_data.JSONExtractValue('$.year')   AS int) as _year,
      CAST (_airbyte_data.JSONExtractValue('$.price')    AS int)  as price,
      CAST (_airbyte_data.JSONExtractValue('$.model')  AS VARCHAR(200)) as model,
 	 CAST (_airbyte_data.JSONExtractValue('$.make')  AS VARCHAR(200)) as make,

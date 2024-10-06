@@ -2,7 +2,7 @@ select
     CAST (_airbyte_data.JSONExtractValue('$.id')  AS int)  as id,
     CAST (_airbyte_data.JSONExtractValue('$.gender')   AS VARCHAR(50)) as gender,
      CAST (_airbyte_data.JSONExtractValue('$.academic_degree')    AS VARCHAR(50))  as academic_degree,
-     CAST (_airbyte_data.JSONExtractValue('$.title')  AS VARCHAR(200)) as mtitle,
+     CAST (_airbyte_data.JSONExtractValue('$.title')  AS VARCHAR(200)) as _title,
 	 CAST (_airbyte_data.JSONExtractValue('$.nationality')  AS VARCHAR(50)) as nationality,	 
 	 CAST (_airbyte_data.JSONExtractValue('$.age')  AS int) as age,
 	 CAST (_airbyte_data.JSONExtractValue('$.name')  AS VARCHAR(200)) as name,
