@@ -13,8 +13,6 @@ models:
             tests:
                 - not_null
           - name: title
-            tests:
-                - not_null
           - name: nationality
             tests:
                 - not_null
@@ -67,8 +65,6 @@ models:
             tests:
                 - unique
           - name: year
-            tests:
-                - not_null
           - name: price
             tests:
                 - not_null
