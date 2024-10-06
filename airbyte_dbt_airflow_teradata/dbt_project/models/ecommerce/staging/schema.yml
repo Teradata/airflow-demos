@@ -12,7 +12,9 @@ models:
           - name: academic_degree
             tests:
                 - not_null
-          - name: title
+          - name: _title
+            tests:
+                - not_null
           - name: nationality
             tests:
                 - not_null
@@ -64,7 +66,9 @@ models:
           - name: id
             tests:
                 - unique
-          - name: year
+          - name: _year
+            tests:
+                - not_null
           - name: price
             tests:
                 - not_null
