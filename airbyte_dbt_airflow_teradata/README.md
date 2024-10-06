@@ -173,8 +173,8 @@ Let's set up Airflow for our project, following the steps below. We are basing o
 Now that everything is set up, it's time to run your data pipeline!
 
 - In the Airflow UI, go to the "DAGs" section.
-- Local and Enable `airbyte_job_trigger` and `dbt_job_trigger` dags in UI.
-- click on "Trigger DAG" of `airbyte_job_trigger` under the "Actions" column.
+- Local and Enable `elt_dag` and `dbt_tag` dags in UI.
+- click on "Trigger DAG" of `elt_dag` under the "Actions" column.
 
 This will initiate the complete data pipeline, starting with the Airbyte sync from Faker to Teradata, followed by dbt transforming the raw data into `staging` and `agreegate` models.
 

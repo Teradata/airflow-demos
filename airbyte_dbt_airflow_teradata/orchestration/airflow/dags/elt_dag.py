@@ -11,7 +11,7 @@ from dbt_config import project_config, profile_config
 
 
 @dag(
-    dag_id="airbyte_job_trigger",
+    dag_id="elt_dag",
     start_date=datetime(2023, 10, 1),
     schedule="@daily",
     tags=["airbyte", "dbt", "teradata", "ecommerce"],
@@ -48,7 +48,7 @@ extract_and_transform_dag = extract_and_transform()
 
 # Define dbt transform
 dbt_cosmos_dag = DbtDag(
-    dag_id="dbt_job_trigger",
+    dag_id="dbt_dag",
     start_date=datetime(2023, 10, 1),
     tags=["dbt", "ecommerce"],
     catchup=False,
