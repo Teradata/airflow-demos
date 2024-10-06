@@ -77,7 +77,7 @@ Start by launching the Airbyte UI by going to http://localhost:8000/ in your bro
      - Host: Teradata instance hostname to connect to.
      - User: Specify the user name to connect.
      - Password: Specify the password to connect.
-     - Default Schema: ecommerce
+     - Default Schema: `ecommerce`
    - Click on `Set up destination`.
 
 - **Create a connection**
@@ -91,16 +91,13 @@ That’s it! Your connection is set up and ready to go! 🎉
 
 ## Setting Up the dbt Project
 
-- **Navigate to the dbt Project Directory**
-
-   Move to the directory containing the dbt configuration:
+- **Update faker schema Details in dbt sources model**
+    
+    Update `schema` field under `sources` section with schema name used in Airbyte Destination Teradata connection. Default is `ecommerce`
    ```bash
-   cd dbt_project
+   vi dbt_project/models/ecommerce/sources/faker_sources.yml
    ```
-
-- **Update faker schema Details**
-
-   Update `schema` field under `sources` section with schema name used in Airbyte Destination Teradata connection. Default is `ecommerce`
+   
 
 ## Setting Up Airflow
 
@@ -109,7 +106,7 @@ Let's set up Airflow for our project, following the steps below. We are basing o
 - **Navigate to the Orchestration Directory**
 
    ```bash
-   cd ../orchestration
+   cd orchestration
    ```
 
 - **Set Environment Variables**
@@ -176,8 +173,8 @@ Let's set up Airflow for our project, following the steps below. We are basing o
 Now that everything is set up, it's time to run your data pipeline!
 
 - In the Airflow UI, go to the "DAGs" section.
-- Local and Enable `elt_dat` and `dbt_ecommerce` dags in UI.
-- click on "Trigger DAG" of `elt_dag` under the "Actions" column.
+- Local and Enable `airbyte_job_trigger` and `dbt_job_trigger` dags in UI.
+- click on "Trigger DAG" of `airbyte_job_trigger` under the "Actions" column.
 
 This will initiate the complete data pipeline, starting with the Airbyte sync from Faker to Teradata, followed by dbt transforming the raw data into `staging` and `agreegate` models.
 
