@@ -34,7 +34,7 @@ def extract_and_transform():
     # Trigger for dbt DAG
     trigger_dbt_dag = TriggerDagRunOperator(
         task_id="trigger_dbt_dag",
-        trigger_dag_id="dbt_ecommerce",
+        trigger_dag_id="dbt_job_trigger",
         wait_for_completion=True,
         poke_interval=30,
     )
@@ -48,7 +48,7 @@ extract_and_transform_dag = extract_and_transform()
 
 # Define dbt transform
 dbt_cosmos_dag = DbtDag(
-    dag_id="dbt_ecommerce",
+    dag_id="dbt_dag",
     start_date=datetime(2023, 10, 1),
     tags=["dbt", "ecommerce"],
     catchup=False,

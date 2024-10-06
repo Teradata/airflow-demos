@@ -1,54 +1,56 @@
 # E-commerce Analytics Stack with Airbyte, dbt, Airflow (ADA) and Teradata
 
-Welcome to the Airbyte, dbt and Airflow (ADA) Stack with Teradata quickstart! This repo contains the code to show how to utilize Airbyte and dbt for data extraction and transformation, and implement Apache Airflow to orchestrate the data workflows, providing a end-to-end ELT pipeline. With this setup, you can pull fake e-commerce data, put it into Teradata, and play around with it using dbt and Airflow.
+Welcome to the quickstart guide for the Airbyte, dbt, and Airflow (ADA) Stack with Teradata! This repository provides the code needed to leverage Airbyte and dbt for data extraction and transformation, while using Apache Airflow to orchestrate your data workflows, creating a complete end-to-end ELT pipeline. With this setup, you can import synthetic e-commerce data into Teradata and explore it using dbt and Airflow.
 
 Here's the diagram of the end to end data pipeline you will build, from the Airflow DAG Graph view:
 
-![elt_dag](assets/elt_dag.png)
+<img src="assets/elt_dag.png" alt="Ecommerce DAG" width="500" height="150">
 
 And here are the transformations happening when the dbt DAG is executed:
 
-![ecommerce_dag](assets/ecommerce_dag.png)
+<img src="assets/ecommerce_dag.png" alt="Ecommerce DAG" width="500" height="300">
 
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
-- [Setting an environment for your project](#1-setting-an-environment-for-your-project)
-- [Setting Up Teradata Instance](#2-setting-up-teradata)
-- [Setting Up Airbyte Connectors](#3-setting-up-airbyte-connectors)
-- [Setting Up the dbt Project](#4-setting-up-the-dbt-project)
-- [Setting Up Airflow](#5-setting-up-airflow)
-- [Orchestrating with Airflow](#6-orchestrating-with-airflow)
-- [Next Steps](#7-next-steps)
+- [Setting an Environment](#setting-an-environment)
+- [Setting Up Teradata Instance](#setting-up-teradata-instance)
+- [Setting Up Airbyte Instance](#setting-up-airbyte-instance)
+- [Setting Up the dbt Project](#setting-up-the-dbt-project)
+- [Setting Up Airflow](#setting-up-airflow)
+- [Orchestrating with Airflow](#orchestrating-with-airflow)
+- [Next Steps](#next-steps)
+- [Troubleshooting](#troubleshooting)
+
+
+> **Note:**: Use `https://learn.microsoft.com/en-us/windows/wsl/install[The Windows Subsystem for Linux (WSL)]` on `Windows` to try  this quickstart.
+
 
 ## Prerequisites
 
 Before you embark on this integration, ensure you have the following set up and ready:
 
-1. **Python 3.10 or later**: If not installed, download and install it from [Python's official website](https://www.python.org/downloads/).
-2. **Docker and Docker Compose (Docker Desktop)**: Install [Docker](https://docs.docker.com/get-docker/) following the official documentation for your specific OS.
-3. **Airbyte OSS version**: Deploy the open-source version of Airbyte locally. Follow the installation instructions from the [Airbyte Documentation](https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart).
-4. **Teradata Vantage Instance** Request test Teradata Vantage instance from https://clearscape.teradata.com/
-## 1. Setting an environment for your project
+- **Python 3.10 or later**: If not installed, download and install it from [Python's official website](https://www.python.org/downloads/).
+- **Docker and Docker Compose (Docker Desktop)**: Install [Docker](https://docs.docker.com/get-docker/) following the official documentation for your specific OS.
+
+
+
+## Setting an environment
 
 Get the project up and running on your local machine by following these steps:
 
-1. **Clone the repository**:  
+- **Clone the repository**:  
    ```bash
    git clone https://github.com/Teradata/airflow-demos.git
    ```
-
+- **Navigate to the directory**:  
    ```bash
-   cd airflow-demos
-   ```
-2. **Navigate to the directory**:  
-   ```bash
-   cd airbyte_dbt_airflow_teradata
+   cd airflow-demos/airbyte_dbt_airflow_teradata
    ```
 
    At this point you can view the code in your preferred IDE. 
 
-## 2. Setting up Teradata Instance
+## Setting up Teradata Instance
 
 Follow the instructions - https://quickstarts.teradata.com/getting-started-with-csae.html
 
@@ -56,27 +58,18 @@ Follow the instructions - https://quickstarts.teradata.com/getting-started-with-
 
 Deploy the open-source version of Airbyte locally. Follow the installation instructions from the [Airbyte Documentation](https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart).
 
----
-
-**NOTE**
-
-If you can't log in because Airbyte is running on HTTP, please refer to the following page for a solution:
-https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart#running-over-http
-
----
-
-## 3. Setting Up Airbyte Connectors
+### Setting Up Airbyte Connectors
 
 Start by launching the Airbyte UI by going to http://localhost:8000/ in your browser. Then:
 
-1. **Create a source**:
+- **Create a source**
 
    - Go to the Sources tab and click on `+ New source`.
    - Search for “faker” using the search bar and select `Sample Data (Faker)`.
    - Adjust the Count and optional fields as needed for your use case. You can also leave as is. 
    - Click on `Set up source`.
 
-2. **Create a destination**:
+- **Create a destination**
 
    - Go to the Destinations tab and click on `+ New destination`.
    - Search for “teradata” using the search bar and select `Teradata Vantage`.
@@ -84,10 +77,10 @@ Start by launching the Airbyte UI by going to http://localhost:8000/ in your bro
      - Host: Teradata instance hostname to connect to.
      - User: Specify the user name to connect.
      - Password: Specify the password to connect.
-     - Default Schema: ecommerce
+     - Default Schema: `ecommerce`
    - Click on `Set up destination`.
 
-3. **Create a connection**:
+- **Create a connection**
 
    - Go to the Connections tab and click on `+ New connection`.
    - Select the source and destination you just created.
@@ -96,40 +89,37 @@ Start by launching the Airbyte UI by going to http://localhost:8000/ in your bro
 
 That’s it! Your connection is set up and ready to go! 🎉 
 
-## 4. Setting Up the dbt Project
+## Setting Up the dbt Project
 
-1. **Navigate to the dbt Project Directory**:
-
-   Move to the directory containing the dbt configuration:
+- **Update faker schema Details in dbt sources model**
+    
+    Update `schema` field under `sources` section with schema name used in Airbyte Destination Teradata connection. Default is `ecommerce`
    ```bash
-   cd dbt_project
+   vi dbt_project/models/ecommerce/sources/faker_sources.yml
    ```
+   
 
-2. **Update faker schema Details**:
-
-   Update `schema` field under `sources` section with schema name used in Airbyte Destination Teradata connection. Default is `ecommerce`
-
-## 5. Setting Up Airflow
+## Setting Up Airflow
 
 Let's set up Airflow for our project, following the steps below. We are basing our setup on the Running Airflow in Docker guide, with some customizations:
 
-1. **Navigate to the Orchestration Directory**:
+- **Navigate to the Orchestration Directory**
 
    ```bash
-   cd ../orchestration
+   cd orchestration
    ```
 
-2. **Set Environment Variables**:
+- **Set Environment Variables**
 
    - Rename the file from `.env.example` to `.env`.
 
-3. **Build the custom Airflow image**:
+- **Build the custom Airflow image**
 
    ```bash
    docker compose build
    ```
 
-4. **Launch the Airflow container**:
+- **Launch the Airflow container**
 
    ```bash
    docker compose up
@@ -137,14 +127,14 @@ Let's set up Airflow for our project, following the steps below. We are basing o
 
    This might take a few minutes initially as it sets up necessary databases and metadata.
 
-5. **Setting up Airflow Connections**:
+- **Setting up Airflow Connections**
 
    Both for using Airbyte and dbt, we need to set up connections in Airflow:
 
    - Access the Airflow UI by navigating to `http://localhost:8080` in your browser. The default username and password are both `airflow`, unless you changed it on the `.env` file.
    - Go to the "Admin" > "Connections" tab.
 
-   **5.1. Create Airbyte Connection**:
+   - **Create Airbyte Connection**
 
       Click on the `+` button to create a new connection and fill in the following details to create an Airbyte connection:
 
@@ -157,7 +147,7 @@ Let's set up Airflow for our project, following the steps below. We are basing o
 
       Click on the `Test` button, and make sure you get a `Connection successfully tested` message at the top. Then, you can `Save` the connection.
 
-   **5.2. Create Teradata Connection**:
+   - **Create Teradata Connection**
 
       Click on the `+` button to create a new connection and fill in the following details to create Teradata connection:
       - **Connection Id**: Unique ID of Teradata Connection. Name it `teradata_connection`.
@@ -169,7 +159,7 @@ Let's set up Airflow for our project, following the steps below. We are basing o
 
       Click on the `Test` button, and make sure you get a `Connection successfully tested` message at the top. Then, you can `Save` the connection.
 
-6. **Link Airbyte connection to the Airflow DAG**:
+- **Link Airbyte connection to the Airflow DAG**
 
    The last step being being able to execute the DAG in Airflow, is to include the `connection_id` from Airbyte:
 
@@ -179,11 +169,12 @@ Let's set up Airflow for our project, following the steps below. We are basing o
 
    That's it! Airflow has been configured to work with dbt and Airbyte. 🎉
 
-## 6. Orchestrating with Airflow
+## Orchestrating with Airflow
 Now that everything is set up, it's time to run your data pipeline!
 
 - In the Airflow UI, go to the "DAGs" section.
-- Locate `elt_dag` and click on "Trigger DAG" under the "Actions" column.
+- Local and Enable `elt_dag` and `dbt_tag` dags in UI.
+- click on "Trigger DAG" of `elt_dag` under the "Actions" column.
 
 This will initiate the complete data pipeline, starting with the Airbyte sync from Faker to Teradata, followed by dbt transforming the raw data into `staging` and `agreegate` models.
 
@@ -192,20 +183,42 @@ This will initiate the complete data pipeline, starting with the Airbyte sync fr
 
 Congratulations! You've successfully run an end-to-end workflow with Airflow, dbt and Airbyte. 🎉
 
-## 7. Next Steps
+## Next Steps
 
 Once you've gone through the steps above, you should have a working Airbyte, dbt and Airflow (ADA) Stack with Teradata. You can use this as a starting point for your project, and adapt it to your needs.
 
 
-## 8. Troubleshooting
+## Troubleshooting
 
-Run below command for below error
-```bash
-sudo usermod -a -G docker  $USER
-```
----
+### Unable to Log In to Airbyte
 
-**NOTE**
- unable to determine docker installation status: error communicating with docker: unable to create client: error communicating with docker: unable to create docker client: unable to ping docker client: permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Head "http://%2Fvar%2Frun%2Fdocker.sock/_ping": dial unix /var/run/docker.sock: connect: permission denied
+**Description**: Users may encounter difficulties logging into Airbyte due to HTTP configuration.
 
- ---
+**Symptoms**:
+- Login page does not accept credentials.
+- Error messages indicating connection issues.
+
+**Possible Causes**:
+- Airbyte is running on HTTP instead of HTTPS.
+
+**Troubleshooting Steps**:
+Follow steps mentioned in [Airbyte HTTP Configuration](https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart#running-over-http) to resolve the issue
+
+## Permission Denied Error When Accessing Docker
+
+**Description**: Users encounter a permission denied error while trying to communicate with the Docker daemon, resulting in the following message:
+
+
+**Symptoms**:
+- Unable to execute Docker commands.
+- Error message indicates permission issues with the Docker socket.
+
+**Possible Causes**:
+- The user does not have permission to access the Docker daemon.
+- The user is not part of the Docker group.
+
+**Troubleshooting Steps**:
+**Add User to Docker Group**:
+   Run the following command to add your user to the Docker group:
+   ```bash
+   sudo usermod -a -G docker $USER
