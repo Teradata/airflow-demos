@@ -288,6 +288,133 @@ def trigger_sync(connection_id: str) -> Tuple[bool, Optional[dict]]:
     except Exception as e:
         return False, {"error": str(e)}
 
+
+# -----------------------
+# Airbyte GET helper + stream handling
+# -----------------------
+def airbyte_get(path: str, params: dict = None, timeout: int = 30):
+    base = AIRBYTE_API_URL.rstrip("/") if AIRBYTE_API_URL else ""
+    url = base + path if path.startswith("/") else base + "/" + path
+    headers = {"Accept": "application/json"}
+    if AIRBYTE_API_TOKEN:
+        headers["Authorization"] = f"Bearer {AIRBYTE_API_TOKEN}"
+    return requests.get(url, params=params, headers=headers, timeout=timeout)
+
+def list_streams_for_pair(source_id: str, destination_id: str) -> Tuple[bool, Optional[list], Optional[str]]:
+    """
+    Calls Airbyte public streams endpoint and returns the parsed list (or error).
+    """
+    if not source_id or not destination_id:
+        return False, None, "sourceId and destinationId required"
+    try:
+        path = "streams"
+        params = {"sourceId": source_id, "destinationId": destination_id}
+        r = airbyte_get(path, params=params)
+        if r.status_code == 200:
+            return True, r.json(), None
+        return False, None, f"Status {r.status_code}: {r.text}"
+    except Exception as e:
+        return False, None, str(e)
+
+def choose_stream(streams: list, preferred_name: Optional[str], user_intent: str) -> Optional[dict]:
+    """
+    Choose a stream dict from the streams list.
+    Rules:
+      - If preferred_name provided, try exact match (case-insensitive)
+      - Else try to match any streamName mentioned in user_intent
+      - Else if exactly one stream exists, return it
+      - Else return the first stream as a fallback
+    """
+    if not streams:
+        return None
+    # normalize
+    if preferred_name:
+        for s in streams:
+            if s.get("streamName", "").lower() == preferred_name.lower():
+                return s
+    # try to find a stream name mentioned in intent
+    lc_intent = (user_intent or "").lower()
+    for s in streams:
+        name = s.get("streamName", "")
+        if name and name.lower() in lc_intent:
+            return s
+    # if only one stream, return it
+    if len(streams) == 1:
+        return streams[0]
+    # fallback: return first
+    return streams[0]
+
+def map_destination_sync_mode(sync_mode_from_list: Optional[str]) -> str:
+    """
+    Accept a requested sync mode string like 'incremental_append' or 'full_refresh_overwrite'
+    and map to Airbyte destinationSyncMode values: 'append', 'overwrite', 'deduped_history'
+    Default to 'append'.
+    """
+    if not sync_mode_from_list:
+        return "append"
+    m = sync_mode_from_list.lower()
+    if "overwrite" in m:
+        return "overwrite"
+    if "dedup" in m or "deduped" in m:
+        return "deduped_history"
+    # default -> append
+    return "append"
+
+def build_sync_catalog_for_stream(stream_entry: dict, chosen_sync_mode: Optional[str] = None, chosen_cursor_field: Optional[list] = None, chosen_primary_key: Optional[list] = None) -> dict:
+    """
+    Construct Airbyte syncCatalog for a single stream entry returned by /streams.
+    stream_entry is expected to contain keys like streamName, streamnamespace, defaultCursorField, sourceDefinedPrimaryKey, propertyFields.
+    """
+    if not stream_entry:
+        return {"streams": []}
+
+    stream_name = stream_entry.get("streamName")
+    namespace = stream_entry.get("streamnamespace") or None
+
+    # determine cursor field and primary key defaults from stream metadata
+    default_cursor = stream_entry.get("defaultCursorField") or []
+    source_pk = stream_entry.get("sourceDefinedPrimaryKey") or []
+    # propertyFields is an array-of-arrays of property names; not used directly for config here
+    # If user provided overrides, use them
+    cursor_field = chosen_cursor_field if chosen_cursor_field is not None else default_cursor
+    primary_key = chosen_primary_key if chosen_primary_key is not None else source_pk
+
+    # sync mode selection: prefer user choice if given; otherwise try to pick a sensible default
+    # If chosen_sync_mode is None, prefer incremental if defaultCursorField present, else pick first full_refresh variant
+    sync_mode = chosen_sync_mode
+    if not sync_mode:
+        # pick a sensible sync mode present in stream_entry.syncModes if available
+        modes = stream_entry.get("syncModes") or []
+        # prefer an incremental mode if cursor exists
+        if cursor_field and any(m.startswith("incremental") for m in modes):
+            # pick the first incremental
+            found = next((m for m in modes if m.startswith("incremental")), None)
+            sync_mode = found or (modes[0] if modes else "incremental_append")
+        else:
+            # fall back to a full_refresh variant if present
+            found = next((m for m in modes if m.startswith("full_refresh")), None)
+            sync_mode = found or (modes[0] if modes else "full_refresh_append")
+
+    destination_sync_mode = map_destination_sync_mode(sync_mode)
+
+    # build the minimal stream json schema placeholder (Airbyte accepts an empty schema in many versions;
+    # for robustness include an empty object)
+    stream_obj = {
+        "stream": {
+            "name": stream_name,
+            "json_schema": {},  # ideally populated from discovery; kept empty as a placeholder
+            **({"namespace": namespace} if namespace else {})
+        },
+        "config": {
+            "sync_mode": sync_mode,
+            "destination_sync_mode": destination_sync_mode,
+            "cursor_field": cursor_field or [],
+            "primary_key": primary_key or []
+        }
+    }
+
+    return {"streams": [stream_obj]}
+
 # -----------------------
 # Main generation + optional validation
 # -----------------------
@@ -443,12 +570,120 @@ def generate_connection_from_intent(user_intent: str, k: int = RAG_TOP_K, max_at
             continue
 
         # Build a simplified connection check payload (production should build syncCatalog via discover_schema)
+        # -----------------------
+        # Build strict-format connection payload (user requested exact schema)
+        # Format required:
+        # {
+        #   "configurations": { "streams": [ { "name": "customer" } ] },
+        #   "sourceId": "<id>",
+        #   "name": "<connection_name>",
+        #   "destinationId": "<id>"
+        # }
+        # -----------------------
+
+        # Start base payload
         conn_payload = {
             "name": conn_bundle.get("connection_name"),
             "sourceId": src_id,
-            "destinationId": dst_id
+            "destinationId": dst_id,
         }
+
+        def normalize_requested_list(val):
+            if not val:
+                return []
+            if isinstance(val, list):
+                return [str(x).strip() for x in val if x]
+            if isinstance(val, str):
+                return [s.strip() for s in val.split(",") if s.strip()]
+            return []
+
+        # Gather explicit requests from metadata
+        meta = conn_bundle.get("metadata", {}) or {}
+        requested_streams = normalize_requested_list(
+            meta.get("requested_streams") or meta.get("requested_stream") or meta.get("stream") or meta.get(
+                "stream_name")
+        )
+        if requested_streams:
+            log.info("Requested streams from metadata: %s", requested_streams)
+
+        # Fetch available streams from Airbyte
+        ok_streams, streams_list, streams_err = list_streams_for_pair(src_id, dst_id)
+
+        selected_names = []
+
+        if ok_streams and isinstance(streams_list, list) and len(streams_list) > 0:
+            # Build ordered list of available stream names
+            available = []
+            for s in streams_list:
+                nm = s.get("streamName") or s.get("name") or ""
+                if nm:
+                    available.append(nm)
+
+            log.info("Available streams from Airbyte: %s", available)
+
+            # 1) If explicit requested list present, include those that match available names (case-insensitive)
+            if requested_streams:
+                for req in requested_streams:
+                    # try exact CI match first
+                    match = next((a for a in available if a.lower() == req.lower()), None)
+                    if not match:
+                        # try substring CI match
+                        match = next((a for a in available if req.lower() in a.lower()), None)
+                    if match:
+                        selected_names.append(match)
+                    else:
+                        log.warning("Requested stream '%s' not found in available streams; skipping.", req)
+
+            else:
+                # 2) No explicit request: detect all stream names mentioned in user_intent
+                lc_intent = (user_intent or "").lower()
+                for a in available:
+                    a_variants = set()
+                    a_variants.add(a.lower())
+                    # replace underscores/hyphens with spaces (common in table names)
+                    a_variants.add(a.lower().replace("_", " ").replace("-", " "))
+                    # also try singular/plural naive variant
+                    if a.endswith("s"):
+                        a_variants.add(a[:-1].lower())
+                    else:
+                        a_variants.add(a + "s")
+                    # if any variant appears in intent, select it
+                    if any(v in lc_intent for v in a_variants):
+                        selected_names.append(a)
+
+            # dedupe preserving order
+            seen = set()
+            selected_names = [x for x in selected_names if not (x in seen or seen.add(x))]
+
+            # 3) Fallback special-case: if intent mentions common pair 'customer' and 'commits', ensure both included
+            if not selected_names:
+                lc_intent = (user_intent or "").lower()
+                for special in ("customer", "commits"):
+                    if special in lc_intent:
+                        match = next((a for a in available if a.lower() == special), None)
+                        if match and match not in selected_names:
+                            selected_names.append(match)
+
+            # 4) Final fallback: if still empty, include first stream to keep payload valid
+            if not selected_names and available:
+                selected_names.append(available[0])
+
+        else:
+            log.warning("Could not list streams for source/destination: %s", streams_err)
+            # If we couldn't query Airbyte but user explicitly requested streams, use those as-is
+            if requested_streams:
+                selected_names = requested_streams[:]
+            else:
+                selected_names = ["<<STREAM_NAME>>"]
+
+        log.info("Selected streams for connection: %s", selected_names)
+
+        # Build configurations.streams array
+        conn_payload["configurations"] = {"streams": [{"name": name} for name in selected_names]}
+
+        # Now create the connection
         created_ok, created_resp = create_connection(conn_payload)
+
         if created_ok:
             log.info("Connection created in Airbyte: %s", created_resp)
             # try to extract connection id from created_resp
