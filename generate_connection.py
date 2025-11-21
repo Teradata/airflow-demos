@@ -2,6 +2,9 @@
 """
 generate_connection.py (dual-mode: with or without Airbyte validation)
 
+Produces a connection bundle using RAG + Bedrock LLM, and optionally
+applies the bundle to an Airbyte instance.
+
 """
 from __future__ import annotations
 
@@ -11,13 +14,11 @@ import os
 import random
 import re
 import time
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from dotenv import load_dotenv
-
-# LangChain Bedrock bindings (assumed available)
+# LangChain Bedrock bindings (assumed installed in the environment)
 from langchain_aws import BedrockEmbeddings, ChatBedrock
 from langchain_chroma import Chroma
 
@@ -37,7 +38,7 @@ BEDROCK_EMBED_MODEL = os.getenv("BEDROCK_EMBED_MODEL", "amazon.titan-embed-text-
 BEDROCK_LLM_ARN = os.getenv("BEDROCK_LLM_ARN")  # required
 AIRBYTE_API_URL = os.getenv("AIRBYTE_API_URL", "").strip()
 AIRBYTE_API_TOKEN = os.getenv("AIRBYTE_API_TOKEN", "").strip()
-CREATE_IN_AIRBYTE_ENV = os.getenv("CREATE_IN_AIRBYTE", "false").lower() in ("1", "true", "yes")
+CREATE_IN_AIRBYTE_ENV = os.getenv("CREATE_IN_AIRBYTE", "false")
 MAX_REPAIR_ATTEMPTS = int(os.getenv("MAX_REPAIR_ATTEMPTS", "3"))
 RAG_TOP_K = int(os.getenv("RAG_TOP_K", "6"))
 CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_store/current")
@@ -53,7 +54,7 @@ if not BEDROCK_LLM_ARN:
 # Constants & templates
 # -----------------------
 PROMPT_TEMPLATE = """
-You are Airbyte Connector Agent. Produce a single JSON object named "connection_bundle" ONLY (no explanation).
+You are Airbyte Connector Agent. Produce a single JSON object ONLY (no explanation).
 It must be valid JSON and follow this structure:
 
 {
@@ -63,18 +64,18 @@ It must be valid JSON and follow this structure:
      "definitionId": "<uuid_or_placeholder>",
      "workspaceId": "<<WORKSPACE_ID>>",
      "configuration": {
-       "sourceType": "<connector_type>",
-       ... other config fields ...
-   }
+       "sourceType": "<connector_type>"
+       /* other configuration fields */
+     }
   },
   "destination": {
      "name": "<string>",
      "definitionId": "<uuid_or_placeholder>",
      "workspaceId": "<<WORKSPACE_ID>>",
-      "configuration": {
-       "destinationType": "<connector_type>",
-       ... other config fields ...
-   }
+     "configuration": {
+       "destinationType": "<connector_type>"
+       /* other configuration fields */
+     }
   },
   "sync": {
      "sync_mode": "incremental" | "full_refresh",
@@ -89,11 +90,13 @@ Guidelines:
 - Use placeholders for secrets like "<<PASSWORD>>".
 - If unsure about cursor_field existence, set it to null and explain in metadata.notes.
 - OUTPUT ONLY the single JSON object.
-- while generating source and destination configuration, refer _spec.json files of respective connector
+- while generating source and destination configuration, refer to connector _spec.json files
 
 IMPORTANT TERADATA SCHEMA RULES — FOLLOW EXACTLY:
 
-When the connector is Teradata (destination or source), the connector **must** include a JSON object property named "logmech" inside the connectionConfiguration (or configuration). This "logmech" must be an **object**, not a string, and it must conform to exactly one of the two schemas below (use the exact property names and values, do not invent synonyms):
+When the connector is Teradata (destination or source), the connector must include a JSON
+object property named "logmech" inside the connectionConfiguration (or configuration).
+This "logmech" must be an object and conform exactly to one of the two schemas below.
 
 Schema A (TD2):
 {
@@ -113,15 +116,12 @@ Schema B (LDAP):
   }
 }
 
-
 Rules:
 - Do NOT output "logmech" as a string.
 - Use exactly "logmech" and inside it exactly "auth_type", "username", "password".
-- Use placeholders for secrets (e.g., "<<TERADATA_PASS>>") unless the user provided real secrets in the intent.
-- OUTPUT ONLY the final JSON object named "connection_bundle".
-- Read definitionId from source and destination metadata.yaml files 
-- IMPORTANT: Return the JSON object itself — DO NOT wrap it inside another object or a top-level key. Do NOT include any descriptive text, code fences, or extra keys. 
-- If you produce the object inside a key named "connection_bundle", return the inner object directly instead (i.e., output only the object).
+- Use placeholders for secrets (e.g., "<<TERADATA_PASS>>") unless the user provided real secrets.
+- OUTPUT ONLY the final JSON object (do not wrap it in any extra keys or text).
+- Read definitionId from source and destination metadata.yaml files when possible.
 
 Retrieved context:
 <<RETRIEVED_CONTEXT>>
@@ -145,11 +145,13 @@ def retry(fn, *args, retries: int = 3, backoff_base: float = 0.5, **kwargs):
             wait = backoff_base * (2 ** (attempt - 1)) * (1 + random.random() * 0.1)
             log.warning("Attempt %d failed: %s — retrying in %.2fs", attempt, exc, wait)
             time.sleep(wait)
+    return None
 
 
 def extract_json_from_text(text: str) -> Optional[Dict[str, Any]]:
     """
     Try to extract a JSON object from arbitrary LLM text. Returns dict or None.
+    This tries a direct parse first, then progressively trims trailing characters.
     """
     if not text:
         return None
@@ -259,6 +261,7 @@ def is_airbyte_reachable(api_url: str, timeout: float = 5.0) -> bool:
     except Exception:
         return False
 
+
 def contains_placeholders(entity: dict) -> bool:
     """
     Return True if any string value in the entity (recursively in configuration)
@@ -271,11 +274,11 @@ def contains_placeholders(entity: dict) -> bool:
     def _scan(val) -> bool:
         if isinstance(val, str):
             # common placeholder patterns used in this project
-            if val.strip().startswith("<<") and val.strip().endswith(">>"):
+            s = val.strip()
+            if s.startswith("<<") and s.endswith(">>"):
                 return True
-            if "<<" in val and ">>" in val:
+            if "<<" in s and ">>" in s:
                 return True
-            # you can add additional heuristics here if needed
             return False
         if isinstance(val, dict):
             for v in val.values():
@@ -288,7 +291,6 @@ def contains_placeholders(entity: dict) -> bool:
         return False
 
     # Scan top-level definitionId and configuration/connectionConfiguration as well
-    # (definitionId placeholders also indicate we should skip live API)
     defid = entity.get("definitionId")
     if isinstance(defid, str) and _scan(defid):
         return True
@@ -302,7 +304,9 @@ def contains_placeholders(entity: dict) -> bool:
     # fallback: scan whole entity body
     return _scan(entity)
 
+
 PLACEHOLDER_RE = re.compile(r"<<\s*([^<> \t\n\r]+)\s*>>")
+
 
 def find_placeholders_in_bundle(bundle: Dict[str, Any]) -> List[str]:
     """
@@ -327,14 +331,11 @@ def find_placeholders_in_bundle(bundle: Dict[str, Any]) -> List[str]:
 
 def apply_bundle_to_airbyte(
     bundle: Dict[str, Any],
-    auto_create: bool = True,
     run_sync: bool = False,
     force_apply: bool = False,
 ) -> Tuple[bool, Dict[str, Any]]:
     """
-    Apply an existing connection_bundle JSON to Airbyte using the same helper functions
-    that your generator uses (check_or_create_source, check_or_create_destination, create_connection, trigger_sync).
-
+    Apply an existing connection_bundle JSON to Airbyte using helper functions.
     Returns (ok, response_summary). If placeholders exist and force_apply is False, returns skipped status.
     """
     placeholders = find_placeholders_in_bundle(bundle)
@@ -348,7 +349,7 @@ def apply_bundle_to_airbyte(
         log.warning("Placeholders detected in bundle: %s. Skipping API calls.", placeholders)
         return False, msg
 
-    # Build source + destination payloads consistent with your generation logic
+    # Build source + destination payloads consistent with generation logic
     src = bundle.get("source", {}) or {}
     dst = bundle.get("destination", {}) or {}
     src_payload = {
@@ -364,17 +365,14 @@ def apply_bundle_to_airbyte(
         "configuration": dst.get("configuration", dst.get("connectionConfiguration", {})),
     }
 
-    # Create/check source
     ok_src, src_id, src_err = check_or_create_source(src_payload)
     if not ok_src:
         return False, {"step": "create_source", "error": src_err, "payload": src_payload}
 
-    # Create/check destination
     ok_dst, dst_id, dst_err = check_or_create_destination(dst_payload)
     if not ok_dst:
         return False, {"step": "create_destination", "error": dst_err, "payload": dst_payload}
 
-    # Build connection payload (streams)
     conn_payload = {"name": bundle.get("connection_name"), "sourceId": src_id, "destinationId": dst_id}
 
     meta = bundle.get("metadata", {}) or {}
@@ -395,7 +393,6 @@ def apply_bundle_to_airbyte(
 
     conn_payload["configurations"] = {"streams": streams}
 
-    # Create connection
     created_ok, created_resp = create_connection(conn_payload)
     if not created_ok:
         return False, {"step": "create_connection", "error": created_resp, "payload": conn_payload}
@@ -406,13 +403,13 @@ def apply_bundle_to_airbyte(
 
     result = {"created": created_resp, "connectionId": conn_id}
 
-    # Optionally trigger sync
     if run_sync and conn_id:
         ok_job, job_resp = trigger_sync(conn_id)
         result["job_ok"] = ok_job
         result["job"] = job_resp
 
     return True, result
+
 
 # -----------------------
 # Airbyte resource helpers
@@ -661,7 +658,7 @@ def generate_connection_from_intent(
     prompt = build_prompt(retrieved, user_intent)
     llm = get_chat_llm(BEDROCK_LLM_ARN)
 
-    if force_validate is True:
+    if force_validate:
         validate = True
     elif force_validate is False:
         validate = False
@@ -715,10 +712,12 @@ def generate_connection_from_intent(
 
         conn_bundle = extract_json_from_text(llm_text)
         if not conn_bundle:
-            last_error = f"LLM output not parseable as JSON. Output excerpt:\n{llm_text[:1000]!s}"
+            last_error = f"LLM output not parseable as JSON. Output excerpt:\n{(llm_text or '')[:1000]!s}"
             log.warning(last_error)
-            prompt += "\n\nNOTE: Your previous output was not valid JSON. Return ONLY the JSON object called connection_bundle."
+            prompt += "\n\nNOTE: Your previous output was not valid JSON. Return ONLY the JSON object."
             continue
+
+        log.info("Generated bundle keys: %s", list(conn_bundle.keys()))
 
         required_keys = {"connection_name", "source", "destination", "sync"}
         if not required_keys.issubset(set(conn_bundle.keys())):
@@ -732,7 +731,6 @@ def generate_connection_from_intent(
         dst_entity = conn_bundle.get("destination", {}) or {}
 
         # If placeholders exist in either entity, do NOT attempt live validation/creation.
-        # Instead return the generated bundle (but ensure workspaceId present).
         if contains_placeholders(src_entity) or contains_placeholders(dst_entity):
             log.info(
                 "Placeholders detected in generated bundle (src_or_dst). Skipping Airbyte validation/create and returning bundle with placeholders."
@@ -942,7 +940,6 @@ def _parse_args() -> Tuple[Optional[str], int, int, Optional[bool], Optional[boo
     return args.query, args.k, args.attempts, force_validate, auto_create, args.apply_bundle, args.force_apply, run_sync_flag, args.save_bundle
 
 
-
 if __name__ == "__main__":
     # parse args (new signature)
     query, k, attempts, force_validate, auto_create, apply_bundle_path, force_apply, run_sync_flag, save_bundle = _parse_args()
@@ -956,7 +953,7 @@ if __name__ == "__main__":
             log.error("Failed to load bundle JSON: %s", exc)
             raise SystemExit(2)
 
-        ok, resp = apply_bundle_to_airbyte(bundle, auto_create=auto_create if auto_create is not None else CREATE_IN_AIRBYTE_ENV, run_sync=run_sync_flag, force_apply=force_apply)
+        ok, resp = apply_bundle_to_airbyte(bundle, run_sync=run_sync_flag, force_apply=force_apply)
         print(json.dumps({"ok": ok, "resp": resp}, indent=2, default=str))
         raise SystemExit(0)
 

@@ -329,6 +329,22 @@ python generate_connection.py   --query "Sync customers table from Postgres to T
 
 ---
 
+### > **ℹ️ Note: Validate & Update `bundle.json` Before Applying**
+
+> Before running the `--apply-bundle` command, make sure to:
+>
+> 1. **Open the generated `bundle.json`.**
+> 2. **Replace all placeholders** such as:
+>    - `<<HOST>>`  
+>    - `<<USERNAME>>`  
+>    - `<<PASSWORD>>`  
+>    - `<<SOURCE_DEFINITION_ID>>`  
+>    - `<<DEST_DEFINITION_ID>>`  
+>    - Any other `<<...>>` tokens
+> 3. **Verify all required connection fields** (source, destination, sync) have valid, non-placeholder values.
+>
+> After replacing all placeholders with real values, apply the bundle.
+
 ## 5. Apply the Bundle
 
 ```bash
