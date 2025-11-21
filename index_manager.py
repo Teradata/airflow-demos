@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-index_manager.py (patched)
+index_manager.py
 
 Unified index manager for ACA Retriever:
 - incremental indexing (sha256 manifest)
@@ -10,43 +10,40 @@ Unified index manager for ACA Retriever:
 - smoke tests and embedding-dimension checks
 - locking to prevent concurrent runs
 
-Patched:
-- fixed ValueError when calling Chroma.from_documents([]) by creating empty collection via Chroma(...) and upserting manually
-- guard to abort when there are no texts to index
-- simple retry/backoff wrapper for embedding calls
 """
+
+from __future__ import annotations
 
 import argparse
 import hashlib
 import json
 import logging
 import os
+import random
 import shutil
 import sys
 import time
-import random
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
+import yaml
 from dotenv import load_dotenv
 
 # Locking (unix-only file lock via fcntl). On Windows fallback to simple lock file check.
 try:
     import fcntl
+
     _HAS_FCNTL = True
 except Exception:
     _HAS_FCNTL = False
 
 # LangChain / Chroma / Bedrock imports (LangChain v0.2+ split packages)
 from langchain_core.documents import Document
-from langchain_community.document_loaders import TextLoader, JSONLoader, UnstructuredFileLoader
+from langchain_community.document_loaders import JSONLoader, TextLoader, UnstructuredFileLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_aws import BedrockEmbeddings
 from langchain_chroma import Chroma
-
-# chromadb low-level collection access (used internally by Chroma wrapper)
-import chromadb
 
 # Logging config
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -54,11 +51,13 @@ log = logging.getLogger("index_manager")
 
 load_dotenv()
 
+
 # -------------------------
 # Helpers
 # -------------------------
-def _is_primitive(v):
+def _is_primitive(v) -> bool:
     return isinstance(v, (str, int, float, bool)) or v is None
+
 
 def sanitize_metadata_value(v):
     """
@@ -77,6 +76,7 @@ def sanitize_metadata_value(v):
     except Exception:
         return str(v)
 
+
 def sanitize_metadata(md: dict) -> dict:
     """
     Return a new metadata dict with only primitive values (or JSON-serialized strings).
@@ -84,7 +84,7 @@ def sanitize_metadata(md: dict) -> dict:
     """
     if not isinstance(md, dict):
         return {}
-    out = {}
+    out: Dict[str, object] = {}
     for k, v in md.items():
         try:
             out[k] = sanitize_metadata_value(v)
@@ -127,8 +127,6 @@ def list_files(root: Path, exts=None) -> List[Path]:
     return files
 
 
-import yaml  # add at top of file with other imports
-
 def load_file_via_loader(path: Path) -> List[Document]:
     """
     Load a path into one or more langchain Document objects.
@@ -145,6 +143,7 @@ def load_file_via_loader(path: Path) -> List[Document]:
     - On any loader/parse error, fallback to raw text content.
     """
     suffix = path.suffix.lower()
+    docs: List[Document] = []
     try:
         if suffix in {".md", ".txt", ".rst"}:
             loader = TextLoader(str(path), encoding="utf-8")
@@ -158,9 +157,12 @@ def load_file_via_loader(path: Path) -> List[Document]:
                 # If it's a connector spec with connectionSpecification, index that block
                 if isinstance(parsed, dict) and "connectionSpecification" in parsed:
                     spec = parsed["connectionSpecification"]
-                    docs = [Document(page_content=json.dumps(spec, indent=2),
-                                     metadata={"source": str(path), "spec_json": json.dumps(spec, ensure_ascii=False)})]
-
+                    docs = [
+                        Document(
+                            page_content=json.dumps(spec, indent=2),
+                            metadata={"source": str(path), "spec_json": json.dumps(spec, ensure_ascii=False)},
+                        )
+                    ]
                 else:
                     loader = JSONLoader(str(path))
                     docs = loader.load()
@@ -180,21 +182,27 @@ def load_file_via_loader(path: Path) -> List[Document]:
                     # If YAML contains connectionSpecification (Airbyte spec), index that
                     if "connectionSpecification" in parsed and isinstance(parsed["connectionSpecification"], (dict, list)):
                         spec = parsed["connectionSpecification"]
-                        docs = [Document(page_content=json.dumps(spec, indent=2),
-                                         metadata={"source": str(path), "spec_json": spec})]
+                        docs = [
+                            Document(
+                                page_content=json.dumps(spec, indent=2),
+                                metadata={"source": str(path), "spec_json": spec},
+                            )
+                        ]
                     # If YAML is a connector manifest (top-level 'data' block), index 'data' itself
                     elif "data" in parsed and isinstance(parsed["data"], dict):
                         data_block = parsed["data"]
-                        docs = [Document(page_content=json.dumps(data_block, indent=2),
-                                         metadata={"source": str(path), "manifest": True, "manifest_json": data_block})]
+                        docs = [
+                            Document(
+                                page_content=json.dumps(data_block, indent=2),
+                                metadata={"source": str(path), "manifest": True, "manifest_json": data_block},
+                            )
+                        ]
                     else:
                         # Fallback: index entire YAML as a single JSON string doc
-                        docs = [Document(page_content=json.dumps(parsed, indent=2),
-                                         metadata={"source": str(path)})]
+                        docs = [Document(page_content=json.dumps(parsed, indent=2), metadata={"source": str(path)})]
                 else:
                     # scalar or list -> serialize and index
-                    docs = [Document(page_content=json.dumps(parsed, indent=2),
-                                     metadata={"source": str(path)})]
+                    docs = [Document(page_content=json.dumps(parsed, indent=2), metadata={"source": str(path)})]
             except Exception as ex_yaml:
                 log.warning("YAML parse failed for %s: %s — falling back to raw text", path, ex_yaml)
                 try:
@@ -212,13 +220,12 @@ def load_file_via_loader(path: Path) -> List[Document]:
             docs = [Document(page_content=text, metadata={"source": str(path)})] if text else []
         except Exception:
             docs = []
+
     # Ensure source metadata present
     for d in docs:
         if "source" not in d.metadata:
             d.metadata["source"] = str(path)
     return docs
-
-
 
 
 def chunk_documents(docs: List[Document], chunk_size: int, overlap: int) -> List[Document]:
@@ -227,7 +234,8 @@ def chunk_documents(docs: List[Document], chunk_size: int, overlap: int) -> List
 
 
 def deterministic_chunk_id(file_path: str, file_sha: str, chunk_index: int) -> str:
-    normalized = file_path.replace("/", "::")
+    # normalize path to POSIX and make ids cross-platform deterministic
+    normalized = Path(file_path).as_posix().replace("/", "::")
     return f"{normalized}::{file_sha}::chunk{chunk_index}"
 
 
@@ -236,17 +244,21 @@ def ensure_dir(path: Path):
 
 
 # Simple retry helper for embedding calls
-def retry_embed(func, *args, retries=3, backoff_base=0.5, **kwargs):
+def retry_embed(func, *args, retries: int = 3, backoff_base: float = 0.5, **kwargs):
+    last_exc = None
     for attempt in range(1, retries + 1):
         try:
             return func(*args, **kwargs)
         except Exception as e:
+            last_exc = e
             if attempt == retries:
                 log.exception("Embedding failed after %d attempts", attempt)
                 raise
             wait = backoff_base * (2 ** (attempt - 1)) * (1 + random.random() * 0.1)
             log.warning("Embed attempt %d failed: %s - retrying in %.2fs", attempt, e, wait)
             time.sleep(wait)
+    # should never reach here
+    raise last_exc
 
 
 # -------------------------
@@ -263,7 +275,7 @@ class IndexManager:
         chunk_size: int = 700,
         chunk_overlap: int = 70,
         keep_versions: int = 3,
-        lock_file: str | None = None,
+        lock_file: Optional[str] = None,
     ):
         self.docs_dir = Path(docs_dir)
         self.persist_root = Path(persist_root)
@@ -275,13 +287,20 @@ class IndexManager:
         self.keep_versions = keep_versions
         self.lock_file = lock_file or str(self.manifests_dir / ".index_lock")
         self.manifest_path = self.manifests_dir / "index_manifest.json"
-        self.embedding = None
+        self.embedding: Optional[BedrockEmbeddings] = None
         ensure_dir(self.manifests_dir)
         ensure_dir(self.persist_root)
+        self.lock_fd = None
 
     def _acquire_lock(self):
-        self.lock_fd = open(self.lock_file, "w")
-        if _HAS_FCNTL:
+        # open a lock file descriptor so we can use fcntl on unix
+        try:
+            self.lock_fd = open(self.lock_file, "w")
+        except Exception:
+            # fallback: ensure lock_file path exists (will attempt writes later)
+            self.lock_fd = None
+
+        if _HAS_FCNTL and self.lock_fd is not None:
             try:
                 fcntl.flock(self.lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 log.debug("Acquired fcntl lock")
@@ -290,20 +309,31 @@ class IndexManager:
                 sys.exit(2)
         else:
             try:
+                # If a recent lock file exists, assume another process is running
                 if os.path.exists(self.lock_file) and (time.time() - os.path.getmtime(self.lock_file) < 3600):
                     log.error("Another indexing process is running (lock file exists). Exiting.")
                     sys.exit(2)
+                # touch the lock file
                 Path(self.lock_file).write_text(str(time.time()))
             except Exception:
-                pass
+                # if we cannot create a lock file, keep going but log
+                log.warning("Unable to create lock file; proceeding without robust locking.")
 
     def _release_lock(self):
         try:
-            if _HAS_FCNTL:
-                fcntl.flock(self.lock_fd, fcntl.LOCK_UN)
-            self.lock_fd.close()
+            if _HAS_FCNTL and self.lock_fd is not None:
+                try:
+                    fcntl.flock(self.lock_fd, fcntl.LOCK_UN)
+                except Exception:
+                    pass
+            if self.lock_fd:
+                try:
+                    self.lock_fd.close()
+                except Exception:
+                    pass
             try:
-                os.remove(self.lock_file)
+                if os.path.exists(self.lock_file):
+                    os.remove(self.lock_file)
             except Exception:
                 pass
         except Exception:
@@ -322,7 +352,11 @@ class IndexManager:
                 raise
 
     def _open_collection(self, persist_dir: Path, collection_name: str = "airbyte_connectors"):
-        vs = Chroma(persist_directory=str(persist_dir), collection_name=collection_name)
+        # pass embedding_function explicitly for consistency where possible
+        if self.embedding is not None:
+            vs = Chroma(persist_directory=str(persist_dir), collection_name=collection_name, embedding_function=self.embedding)
+        else:
+            vs = Chroma(persist_directory=str(persist_dir), collection_name=collection_name)
         return vs, vs._collection
 
     def incremental_index(self):
@@ -331,7 +365,7 @@ class IndexManager:
             manifest = read_manifest(self.manifest_path)
             prev_files = manifest.get("files", {})
             files = list_files(self.docs_dir)
-            current = {}
+            current: Dict[str, Dict] = {}
             for p in files:
                 sha = compute_sha256(p)
                 current[str(p)] = {"sha": sha, "path": str(p)}
@@ -340,7 +374,13 @@ class IndexManager:
             changed = [p for p in current if p in prev_files and current[p]["sha"] != prev_files[p]["sha"]]
             deleted = [p for p in prev_files if p not in current]
 
-            log.info("Files discovered: %d, added: %d, changed: %d, deleted: %d", len(files), len(added), len(changed), len(deleted))
+            log.info(
+                "Files discovered: %d, added: %d, changed: %d, deleted: %d",
+                len(files),
+                len(added),
+                len(changed),
+                len(deleted),
+            )
 
             if not (added or changed or deleted):
                 log.info("No changes detected; nothing to do.")
@@ -355,7 +395,14 @@ class IndexManager:
                 log.info("No current index found; creating initial index at: %s", current_dir)
                 ensure_dir(current_dir)
                 vs, _ = self._open_collection(current_dir)
-                manifest = {"files": {}, "embedding_model_id": self.model_id, "dimension": len(retry_embed(self.embedding.embed_documents, ["__dim_check__"], retries=3)[0]), "index_version": vtag}
+                # create an initial manifest (dimension check)
+                dim = len(retry_embed(self.embedding.embed_documents, ["__dim_check__"], retries=3)[0])
+                manifest = {
+                    "files": {},
+                    "embedding_model_id": self.model_id,
+                    "dimension": dim,
+                    "index_version": vtag,
+                }
                 write_manifest(self.manifest_path, manifest)
 
             vs, collection = self._open_collection(current_dir)
@@ -386,19 +433,23 @@ class IndexManager:
                         raise
                     # upsert using low-level collection API
                     collection.upsert(ids=ids, embeddings=embeddings, metadatas=metadatas, documents=texts)
-                    manifest.setdefault("files", {})[pstr] = {"sha": file_sha, "last_indexed": datetime.utcnow().isoformat(), "chunks": len(chunks)}
+                    manifest.setdefault("files", {})[pstr] = {
+                        "sha": file_sha,
+                        "last_indexed": datetime.utcnow().isoformat(),
+                        "chunks": len(chunks),
+                    }
                     write_manifest(self.manifest_path, manifest)
                     log.info("Upserted %d chunks for %s", len(chunks), pstr)
 
             if deleted:
                 log.info("Deleting index entries for %d removed files", len(deleted))
-                delete_ids = []
+                delete_ids: List[str] = []
                 for pstr in deleted:
                     prev = prev_files.get(pstr)
                     if not prev:
                         continue
                     prev_sha = prev.get("sha")
-                    prev_chunks = prev.get("chunks", 0)
+                    prev_chunks = int(prev.get("chunks", 0))
                     for i in range(prev_chunks):
                         delete_ids.append(deterministic_chunk_id(pstr, prev_sha, i))
                 if delete_ids:
@@ -415,7 +466,7 @@ class IndexManager:
         finally:
             self._release_lock()
 
-    def full_rebuild(self, smoke_queries: List[str] | None = None):
+    def full_rebuild(self, smoke_queries: Optional[List[str]] = None):
         self._acquire_lock()
         try:
             vtag = now_tag()
@@ -430,7 +481,13 @@ class IndexManager:
 
             files = list_files(self.docs_dir)
             all_items = []  # list of tuples (p, file_sha, chunks)
-            manifest = {"files": {}, "embedding_model_id": self.model_id, "dimension": len(retry_embed(self.embedding.embed_documents, ["__dim_check__"], retries=3)[0]), "index_version": vtag}
+            dim = len(retry_embed(self.embedding.embed_documents, ["__dim_check__"], retries=3)[0])
+            manifest = {
+                "files": {},
+                "embedding_model_id": self.model_id,
+                "dimension": dim,
+                "index_version": vtag,
+            }
 
             for p in files:
                 docs = load_file_via_loader(p)
@@ -443,12 +500,16 @@ class IndexManager:
                     md.update({"source": str(p), "file_sha": file_sha, "chunk_index": i})
                     c.metadata = md
                 all_items.append((p, file_sha, chunks))
-                manifest["files"][str(p)] = {"sha": file_sha, "last_indexed": datetime.utcnow().isoformat(), "chunks": len(chunks)}
+                manifest["files"][str(p)] = {
+                    "sha": file_sha,
+                    "last_indexed": datetime.utcnow().isoformat(),
+                    "chunks": len(chunks),
+                }
 
             # prepare flattened lists
-            texts = []
-            metadatas = []
-            ids = []
+            texts: List[str] = []
+            metadatas: List[Dict] = []
+            ids: List[str] = []
             for p, file_sha, chunks in all_items:
                 for i, c in enumerate(chunks):
                     texts.append(c.page_content)
@@ -468,9 +529,9 @@ class IndexManager:
 
             # batch embeddings
             EMB_BATCH = 64
-            embeddings_all = []
+            embeddings_all: List[List[float]] = []
             for i in range(0, len(texts), EMB_BATCH):
-                batch = texts[i:i + EMB_BATCH]
+                batch = texts[i : i + EMB_BATCH]
                 log.info("Embedding batch %d..%d", i, i + len(batch))
                 embeddings_all.extend(retry_embed(self.embedding.embed_documents, batch, retries=3))
 
@@ -480,10 +541,10 @@ class IndexManager:
 
             # upsert in batches
             for i in range(0, len(texts), EMB_BATCH):
-                b_ids = ids[i:i + EMB_BATCH]
-                b_emb = embeddings_all[i:i + EMB_BATCH]
-                b_mds = metadatas[i:i + EMB_BATCH]
-                b_docs = texts[i:i + EMB_BATCH]
+                b_ids = ids[i : i + EMB_BATCH]
+                b_emb = embeddings_all[i : i + EMB_BATCH]
+                b_mds = metadatas[i : i + EMB_BATCH]
+                b_docs = texts[i : i + EMB_BATCH]
                 if not b_ids:
                     continue
                 collection.upsert(ids=b_ids, embeddings=b_emb, metadatas=b_mds, documents=b_docs)
@@ -507,7 +568,12 @@ class IndexManager:
                 tmp_link.unlink()
             os.symlink(str(new_dir.resolve()), str(tmp_link))
             tmp_link.replace(current_link)
-            global_manifest = {"files": manifest["files"], "embedding_model_id": self.model_id, "dimension": manifest["dimension"], "index_version": vtag}
+            global_manifest = {
+                "files": manifest["files"],
+                "embedding_model_id": self.model_id,
+                "dimension": manifest["dimension"],
+                "index_version": vtag,
+            }
             write_manifest(self.manifest_path, global_manifest)
             log.info("Atomic swap complete; current now -> %s", new_dir)
 
@@ -519,7 +585,7 @@ class IndexManager:
     def _prune_old_versions(self):
         dirs = [p for p in self.persist_root.iterdir() if p.is_dir() and p.name.startswith("v")]
         dirs_sorted = sorted(dirs, key=lambda p: p.name, reverse=True)
-        to_remove = dirs_sorted[self.keep_versions:]
+        to_remove = dirs_sorted[self.keep_versions :]
         for d in to_remove:
             try:
                 shutil.rmtree(d)
@@ -530,8 +596,7 @@ class IndexManager:
     def _run_smoke_tests_on_dir(self, dir_path: Path, smoke_queries: List[str]) -> bool:
         try:
             # IMPORTANT: pass the same embedding_function used to build the index
-            vs = Chroma(persist_directory=str(dir_path), collection_name="airbyte_connectors",
-                        embedding_function=self.embedding)
+            vs = Chroma(persist_directory=str(dir_path), collection_name="airbyte_connectors", embedding_function=self.embedding)
 
             # verify embedding dim using the actual embedding function (retry-safe)
             emb_dim = len(retry_embed(self.embedding.embed_documents, ["__dim_check__"], retries=3)[0])
@@ -562,7 +627,11 @@ def parse_args():
     p.add_argument("--persist-root", default="./chroma_store", help="Root directory to persist chroma indexes")
     p.add_argument("--manifests-dir", default="./manifests", help="Manifest directory")
     p.add_argument("--region", default=os.getenv("AWS_REGION", "us-west-2"), help="AWS region for Bedrock")
-    p.add_argument("--model-id", default=os.getenv("BEDROCK_EMBED_MODEL", "amazon.titan-embed-text-v2:0"), help="Bedrock embed model id")
+    p.add_argument(
+        "--model-id",
+        default=os.getenv("BEDROCK_EMBED_MODEL", "amazon.titan-embed-text-v2:0"),
+        help="Bedrock embed model id",
+    )
     p.add_argument("--chunk-size", type=int, default=700)
     p.add_argument("--chunk-overlap", type=int, default=70)
     p.add_argument("--keep-versions", type=int, default=3)

@@ -1,0 +1,18 @@
+# core/langchain split packages
+langchain>=0.2.0
+langchain-core
+langchain-community
+langchain-text-splitters
+langchain-chroma
+
+# Chroma DB
+chromadb
+
+# AWS Bedrock embeddings support
+langchain-aws
+boto3
+
+# Utilities
+python-dotenv
+
+pyyaml

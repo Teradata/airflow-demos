@@ -113,13 +113,15 @@ Schema B (LDAP):
   }
 }
 
+
 Rules:
 - Do NOT output "logmech" as a string.
 - Use exactly "logmech" and inside it exactly "auth_type", "username", "password".
 - Use placeholders for secrets (e.g., "<<TERADATA_PASS>>") unless the user provided real secrets in the intent.
-- Use canonical Airbyte API keys in the final JSON: destinationDefinitionId (not definitionId), workspaceId, connectionConfiguration (not configuration).
 - OUTPUT ONLY the final JSON object named "connection_bundle".
 - Read definitionId from source and destination metadata.yaml files 
+- IMPORTANT: Return the JSON object itself — DO NOT wrap it inside another object or a top-level key. Do NOT include any descriptive text, code fences, or extra keys. 
+- If you produce the object inside a key named "connection_bundle", return the inner object directly instead (i.e., output only the object).
 
 Retrieved context:
 <<RETRIEVED_CONTEXT>>
@@ -300,6 +302,117 @@ def contains_placeholders(entity: dict) -> bool:
     # fallback: scan whole entity body
     return _scan(entity)
 
+PLACEHOLDER_RE = re.compile(r"<<\s*([^<> \t\n\r]+)\s*>>")
+
+def find_placeholders_in_bundle(bundle: Dict[str, Any]) -> List[str]:
+    """
+    Return list of unique placeholder token names found in the bundle (without << >>).
+    """
+    found = set()
+
+    def _scan(obj: Any):
+        if isinstance(obj, str):
+            for m in PLACEHOLDER_RE.findall(obj):
+                found.add(m)
+        elif isinstance(obj, dict):
+            for v in obj.values():
+                _scan(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                _scan(item)
+
+    _scan(bundle)
+    return sorted(found)
+
+
+def apply_bundle_to_airbyte(
+    bundle: Dict[str, Any],
+    auto_create: bool = True,
+    run_sync: bool = False,
+    force_apply: bool = False,
+) -> Tuple[bool, Dict[str, Any]]:
+    """
+    Apply an existing connection_bundle JSON to Airbyte using the same helper functions
+    that your generator uses (check_or_create_source, check_or_create_destination, create_connection, trigger_sync).
+
+    Returns (ok, response_summary). If placeholders exist and force_apply is False, returns skipped status.
+    """
+    placeholders = find_placeholders_in_bundle(bundle)
+    if placeholders and not force_apply:
+        msg = {
+            "status": "skipped",
+            "reason": "placeholders_present",
+            "placeholders": placeholders,
+            "note": "Use --force-apply to force API calls despite placeholders (not recommended).",
+        }
+        log.warning("Placeholders detected in bundle: %s. Skipping API calls.", placeholders)
+        return False, msg
+
+    # Build source + destination payloads consistent with your generation logic
+    src = bundle.get("source", {}) or {}
+    dst = bundle.get("destination", {}) or {}
+    src_payload = {
+        "name": src.get("name", bundle.get("connection_name", "generated_src")),
+        "definitionId": src.get("definitionId", "<<SOURCE_DEFINITION_ID>>"),
+        "workspaceId": src.get("workspaceId", WORKSPACE_ID),
+        "configuration": src.get("configuration", src.get("connectionConfiguration", {})),
+    }
+    dst_payload = {
+        "name": dst.get("name", bundle.get("connection_name", "generated_dst")),
+        "definitionId": dst.get("definitionId", "<<DEST_DEFINITION_ID>>"),
+        "workspaceId": dst.get("workspaceId", WORKSPACE_ID),
+        "configuration": dst.get("configuration", dst.get("connectionConfiguration", {})),
+    }
+
+    # Create/check source
+    ok_src, src_id, src_err = check_or_create_source(src_payload)
+    if not ok_src:
+        return False, {"step": "create_source", "error": src_err, "payload": src_payload}
+
+    # Create/check destination
+    ok_dst, dst_id, dst_err = check_or_create_destination(dst_payload)
+    if not ok_dst:
+        return False, {"step": "create_destination", "error": dst_err, "payload": dst_payload}
+
+    # Build connection payload (streams)
+    conn_payload = {"name": bundle.get("connection_name"), "sourceId": src_id, "destinationId": dst_id}
+
+    meta = bundle.get("metadata", {}) or {}
+    requested_streams = (
+        meta.get("requested_streams") or meta.get("requested_stream") or meta.get("stream") or meta.get("stream_name")
+    )
+    if requested_streams:
+        if isinstance(requested_streams, list):
+            streams = [{"name": s} for s in requested_streams]
+        else:
+            streams = [{"name": s.strip()} for s in str(requested_streams).split(",") if s.strip()]
+    else:
+        cfg_streams = bundle.get("configurations", {}).get("streams")
+        if cfg_streams and isinstance(cfg_streams, list):
+            streams = [{"name": s.get("name") if isinstance(s, dict) else str(s)} for s in cfg_streams]
+        else:
+            streams = [{"name": "<<STREAM_NAME>>"}]
+
+    conn_payload["configurations"] = {"streams": streams}
+
+    # Create connection
+    created_ok, created_resp = create_connection(conn_payload)
+    if not created_ok:
+        return False, {"step": "create_connection", "error": created_resp, "payload": conn_payload}
+
+    conn_id = None
+    if isinstance(created_resp, dict):
+        conn_id = extract_connection_id(created_resp)
+
+    result = {"created": created_resp, "connectionId": conn_id}
+
+    # Optionally trigger sync
+    if run_sync and conn_id:
+        ok_job, job_resp = trigger_sync(conn_id)
+        result["job_ok"] = ok_job
+        result["job"] = job_resp
+
+    return True, result
 
 # -----------------------
 # Airbyte resource helpers
@@ -794,17 +907,25 @@ def generate_connection_from_intent(
 # -----------------------
 # CLI entrypoint
 # -----------------------
-def _parse_args() -> Tuple[str, int, int, Optional[bool], Optional[bool], bool]:
+def _parse_args() -> Tuple[Optional[str], int, int, Optional[bool], Optional[bool], Optional[str], bool, bool, bool]:
     import argparse
 
     parser = argparse.ArgumentParser(description="Generate Airbyte connection bundle (RAG + Bedrock ARN LLM).")
-    parser.add_argument("--query", "-q", required=True, help="Natural language intent")
+    parser.add_argument("--query", "-q", required=False, help="Natural language intent")
     parser.add_argument("--k", type=int, default=RAG_TOP_K, help="Top-k retrieval")
     parser.add_argument("--attempts", type=int, default=MAX_REPAIR_ATTEMPTS, help="Max repair attempts")
     parser.add_argument("--create", action="store_true", help="Also call /connections/create when validated")
     parser.add_argument("--no-validate", action="store_true", help="Force skip Airbyte validation even if AIRBYTE_API_URL is set")
     parser.add_argument("--validate", action="store_true", help="Force validation (error if Airbyte unreachable)")
+    parser.add_argument("--apply-bundle", help="Path to existing connection_bundle JSON to apply directly")
+    parser.add_argument("--force-apply", action="store_true", help="Force application even if placeholders are present")
     parser.add_argument("--run-sync", "-s", action="store_true", help="Trigger a sync job for the created connection")
+    parser.add_argument(
+        "--save-bundle",
+        metavar="FILE",
+        help="Save the generated connection_bundle to a JSON file"
+    )
+
     args = parser.parse_args()
 
     auto_create = args.create if args.create else None
@@ -818,11 +939,32 @@ def _parse_args() -> Tuple[str, int, int, Optional[bool], Optional[bool], bool]:
     env_run = RUN_SYNC.lower() in ("1", "true", "yes")
     run_sync_flag = args.run_sync or env_run
 
-    return args.query, args.k, args.attempts, force_validate, auto_create, run_sync_flag
+    return args.query, args.k, args.attempts, force_validate, auto_create, args.apply_bundle, args.force_apply, run_sync_flag, args.save_bundle
+
 
 
 if __name__ == "__main__":
-    query, k, attempts, force_validate, auto_create, run_sync_flag = _parse_args()
+    # parse args (new signature)
+    query, k, attempts, force_validate, auto_create, apply_bundle_path, force_apply, run_sync_flag, save_bundle = _parse_args()
+
+    if apply_bundle_path:
+        # load and apply existing bundle (skip LLM/RAG)
+        try:
+            with open(apply_bundle_path, "r", encoding="utf-8") as fh:
+                bundle = json.load(fh)
+        except Exception as exc:
+            log.error("Failed to load bundle JSON: %s", exc)
+            raise SystemExit(2)
+
+        ok, resp = apply_bundle_to_airbyte(bundle, auto_create=auto_create if auto_create is not None else CREATE_IN_AIRBYTE_ENV, run_sync=run_sync_flag, force_apply=force_apply)
+        print(json.dumps({"ok": ok, "resp": resp}, indent=2, default=str))
+        raise SystemExit(0)
+
+    # existing generation code path (unchanged)
+    if not query:
+        log.error("No query provided for generation. Use --query or --apply-bundle.")
+        raise SystemExit(2)
+
     bundle, created = generate_connection_from_intent(
         query,
         k=k,
@@ -835,8 +977,25 @@ if __name__ == "__main__":
     if bundle:
         print("\n=== Final connection bundle ===")
         print(json.dumps(bundle, indent=2))
-        if created:
-            print("\n=== Airbyte create/response ===")
-            print(json.dumps(created, indent=2))
+        if save_bundle:
+            try:
+                with open(save_bundle, "w") as f:
+                    json.dump(bundle, f, indent=2)
+                print(f"\nBundle saved to {save_bundle}")
+            except Exception as exc:
+                print(f"\nFailed to save bundle: {exc}")
+        else:
+            # --- Save bundle to file ---
+            output_file = "generated_bundle.json"
+            try:
+                with open(output_file, "w") as f:
+                    json.dump(bundle, f, indent=2)
+                print(f"\nBundle saved to {output_file}")
+            except Exception as exc:
+                print(f"\nFailed to save bundle: {exc}")
+            if created:
+                print("\n=== Airbyte create/response ===")
+                print(json.dumps(created, indent=2))
+
     else:
         print("\nFailed to generate validated connection bundle. See logs for details.")
