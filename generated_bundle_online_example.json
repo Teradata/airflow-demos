@@ -1,0 +1,63 @@
+{
+  "connection_name": "postgres_region_to_teradata_daily",
+  "source": {
+    "name": "postgres_region_source",
+    "definitionId": "decd338e-5647-4c0b-adf4-da0e75f5a750",
+    "workspaceId": "98c8fb93-a1b1-42b8-86ec-2c0e2d3941c3",
+    "configuration": {
+      "sourceType": "postgres",
+      "host": "pe-ubuntu-8358.labs.teradata.com",
+      "port": 5432,
+      "database": "testdb",
+      "username": "testuser",
+      "password": "testuser",
+      "schemas": [
+        "public"
+      ],
+      "ssl_mode": {
+        "mode": "prefer"
+      },
+      "replication_method": {
+        "method": "Standard"
+      }
+    }
+  },
+  "destination": {
+    "name": "teradata_destination",
+    "definitionId": "58e6f9da-904e-11ed-a1eb-0242ac120002",
+    "workspaceId": "98c8fb93-a1b1-42b8-86ec-2c0e2d3941c3",
+    "configuration": {
+      "destinationType": "teradata",
+      "host": "pe18-tdvm-mpp-0003-01.labs.teradata.com",
+      "logmech": {
+        "auth_type": "TD2",
+        "username": "dbc",
+        "password": "dbc"
+      },
+      "schema": "offline_mode",
+      "ssl": false,
+      "ssl_mode": {
+        "mode": "disable"
+      }
+    }
+  },
+  "sync": {
+    "sync_mode": "incremental",
+    "cursor_field": null,
+    "schedule": {
+      "type": "cron",
+      "cronExpression": "0 0 * * *"
+    }
+  },
+  "metadata": {
+    "created_by": "aca_agent",
+    "notes": "Daily sync of region data from Postgres to Teradata. Incremental sync mode selected for efficiency. Cursor field set to null - will need to be configured based on actual table schema (e.g., updated_at, id). Teradata logmech configured with TD2 authentication. Default schema is airbyte_internal for raw tables."
+  },
+  "configurations": {
+    "streams": [
+      {
+        "name": "region"
+      }
+    ]
+  }
+}

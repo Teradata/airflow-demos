@@ -446,3 +446,7 @@ python generate_connection.py   --query "Generate an Airbyte connection_bundle t
 - Placeholder detection prevents accidental API execution.
 - Index Manager should be run before Connection Generator.
 - Connection Generator can be used by customers & engineers.
+
+### High-Level Architecture (RAG + LLM + Airbyte API)
+
+![Airbyte AI Agent Architecture](images/agent-architecture.png)
