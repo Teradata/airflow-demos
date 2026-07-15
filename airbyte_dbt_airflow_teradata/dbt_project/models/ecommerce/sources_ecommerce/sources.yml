@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+    - name: sources_ecommerce
+      schema: airbyte_td
+      tables:
+          - name: users
+            description: 'Simulated user data from the Faker connector.'
+
+          - name: products
+            description: 'Simulated product data from the Faker connector.'
+
+          - name: purchases
+            description: 'Simulated purchase data from the Faker connector.'

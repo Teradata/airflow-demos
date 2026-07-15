@@ -1,5 +1,7 @@
-dbt-core
-astronomer-cosmos
-dbt-teradata
-apache-airflow-providers-airbyte~=3.3.2
-apache-airflow-providers-teradata
+apache-airflow==3.3.0
+pathspec==0.12.1
+dbt-core==1.11.12
+astronomer-cosmos==1.15.0
+dbt-teradata==1.10.3
+apache-airflow-providers-airbyte==5.5.1
+apache-airflow-providers-teradata==3.6.0

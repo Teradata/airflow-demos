@@ -1,10 +1,10 @@
 select
-    CAST (_airbyte_data.JSONExtractValue('$.id')  AS int)  as id,
-    CAST (_airbyte_data.JSONExtractValue('$.year')   AS int) as _year,
-     CAST (_airbyte_data.JSONExtractValue('$.price')    AS int)  as price,
-     CAST (_airbyte_data.JSONExtractValue('$.model')  AS VARCHAR(200)) as model,
-	 CAST (_airbyte_data.JSONExtractValue('$.make')  AS VARCHAR(200)) as make,
-	 CAST (_airbyte_data.JSONExtractValue('$.created_at')  AS timestamp) as created_at,
-	 CAST (_airbyte_data.JSONExtractValue('$.updated_at')  AS timestamp) as updated_at,
-    _airbyte_emitted_at as _airbyte_extracted_at
-from {{ source('faker', '_airbyte_raw_products') }} as table_alias
+    CAST(id AS int) as id,
+    CAST("year" AS int) as _year,
+    CAST(price AS decimal(18, 2)) as price,
+    CAST(model AS VARCHAR(200)) as model,
+	CAST(make AS VARCHAR(200)) as make,
+	CAST(created_at AS timestamp) as created_at,
+	CAST(updated_at AS timestamp) as updated_at,
+    CAST(_airbyte_extracted_at AS timestamp) as _airbyte_extracted_at
+from {{ source('sources_ecommerce', 'products') }} as table_alias

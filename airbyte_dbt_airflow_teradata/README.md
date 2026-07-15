@@ -23,7 +23,7 @@ And here are the transformations happening when the dbt DAG is executed:
 - [Troubleshooting](#troubleshooting)
 
 
-> **Note:**: Use `https://learn.microsoft.com/en-us/windows/wsl/install[The Windows Subsystem for Linux (WSL)]` on `Windows` to try  this quickstart.
+> **Note:** On Windows, use [The Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/en-us/windows/wsl/install) to try this quickstart.
 
 
 ## Prerequisites
@@ -52,7 +52,7 @@ Get the project up and running on your local machine by following these steps:
 
 ## Setting up Teradata Instance
 
-Follow the instructions - https://quickstarts.teradata.com/getting-started-with-csae.html
+Follow the instructions at https://quickstarts.teradata.com/getting-started-with-csae.html
 
 ## Setting Up Airbyte Instance
 
@@ -66,18 +66,18 @@ Start by launching the Airbyte UI by going to http://localhost:8000/ in your bro
 
    - Go to the Sources tab and click on `+ New source`.
    - Search for “faker” using the search bar and select `Sample Data (Faker)`.
-   - Adjust the Count and optional fields as needed for your use case. You can also leave as is. 
+   - Adjust the Count and optional fields as needed for your use case. You can also leave the defaults.
    - Click on `Set up source`.
 
 - **Create a destination**
 
    - Go to the Destinations tab and click on `+ New destination`.
    - Search for “teradata” using the search bar and select `Teradata Vantage`.
-   - Enter the connection details as needed.
-     - Host: Teradata instance hostname to connect to.
-     - User: Specify the user name to connect.
-     - Password: Specify the password to connect.
-     - Default Schema: `ecommerce`
+    - Enter the connection details as needed.
+       - Host: Teradata instance hostname to connect to.
+       - User: Specify the user name to connect.
+       - Password: Specify the password to connect.
+       - Default Schema: `airbyte_td`
    - Click on `Set up destination`.
 
 - **Create a connection**
@@ -91,17 +91,25 @@ That’s it! Your connection is set up and ready to go! 🎉
 
 ## Setting Up the dbt Project
 
-- **Update faker schema Details in dbt sources model**
-    
-    Update `schema` field under `sources` section with schema name used in Airbyte Destination Teradata connection. Default is `ecommerce`
+- **Update Faker Schema Details in dbt Source Model**
+
+   Update `schema` under the `sources` section in the dbt source definition.
+   In this project, the source file is:
+
+   `dbt_project/models/ecommerce/sources_ecommerce/sources.yml`
+
+   The current default schema is `airbyte_td`.
+
+   Make sure this matches the schema where Airbyte writes the normalized destination tables (`users`, `products`, `purchases`).
+
    ```bash
-   vi dbt_project/models/ecommerce/sources/faker_sources.yml
+   vi dbt_project/models/ecommerce/sources_ecommerce/sources.yml
    ```
    
 
 ## Setting Up Airflow
 
-Let's set up Airflow for our project, following the steps below. We are basing our setup on the Running Airflow in Docker guide, with some customizations:
+Let's set up Airflow for this project. This setup is based on the Running Airflow in Docker guide, with customizations for this repository:
 
 - **Navigate to the Orchestration Directory**
 
@@ -112,6 +120,24 @@ Let's set up Airflow for our project, following the steps below. We are basing o
 - **Set Environment Variables**
 
    - Rename the file from `.env.example` to `.env`.
+   - On Linux/WSL, ensure `AIRFLOW_UID` in `.env` matches your host user id (for example, `1000`).
+   - For Airflow 3, set the following two variables in `.env` (they are included in `.env.example` as placeholders):
+     - `AIRFLOW__API_AUTH__JWT_SECRET`
+     - `AIRFLOW__API__SECRET_KEY`
+   - Why these are required:
+     - `AIRFLOW__API_AUTH__JWT_SECRET` is used to sign and validate Execution API JWTs exchanged between Airflow services (webserver, scheduler, worker, dag-processor).
+     - `AIRFLOW__API__SECRET_KEY` is used to sign API/session-related data consistently across services.
+     - If these values are missing or inconsistent between containers, tasks can fail with errors such as `Invalid auth token` or JWT signature validation failures.
+   - How to define them:
+     - Use long random values and keep them identical for all Airflow services in the same deployment.
+     - Example generation commands:
+
+   ```bash
+   openssl rand -hex 64
+   openssl rand -hex 64
+   ```
+
+   - Then set the first output as `AIRFLOW__API_AUTH__JWT_SECRET` and the second as `AIRFLOW__API__SECRET_KEY` in `.env`.
 
 - **Build the custom Airflow image**
 
@@ -142,10 +168,10 @@ Let's set up Airflow for our project, following the steps below. We are basing o
       - **Connection Type**: The type of the connection. In this case, select `Airbyte`.
       - **Host**: The host of the Airbyte instance. Since we're running it locally, use `host.docker.internal`. In case you have a remote instance, you can use the URL of the instance.
       - **Port**: The port of the Airbyte instance. By default the API is exposed on port `8000`.
-      - **Login**: Provide email configured through airbyte `abctl`
-      - **Password**: Provide password configured through airbyte `abctl`. Refer https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart
+      - **Login**: Provide the email configured through Airbyte `abctl`.
+      - **Password**: Provide the password configured through Airbyte `abctl`. Refer to https://docs.airbyte.com/using-airbyte/getting-started/oss-quickstart
 
-      Click on the `Test` button, and make sure you get a `Connection successfully tested` message at the top. Then, you can `Save` the connection.
+      Click on `Test` and make sure you get a `Connection successfully tested` message. Then click `Save`.
 
    - **Create Teradata Connection**
 
@@ -157,11 +183,11 @@ Let's set up Airflow for our project, following the steps below. We are basing o
       - **Login (required)**: Specify the user name to connect.
       - **Password (required)**: Specify the password to connect.
 
-      Click on the `Test` button, and make sure you get a `Connection successfully tested` message at the top. Then, you can `Save` the connection.
+      Click on `Test` and make sure you get a `Connection successfully tested` message. Then click `Save`.
 
 - **Link Airbyte connection to the Airflow DAG**
 
-   The last step being being able to execute the DAG in Airflow, is to include the `connection_id` from Airbyte:
+   The last step before executing the DAG in Airflow is to include the `connection_id` from Airbyte:
 
    - Visit the Airbyte UI at http://localhost:8000/.
    - In the "Connections" tab, select the "Faker to Teradata" connection and copy its connection id from the URL.
@@ -170,22 +196,26 @@ Let's set up Airflow for our project, following the steps below. We are basing o
    That's it! Airflow has been configured to work with dbt and Airbyte. 🎉
 
 ## Orchestrating with Airflow
-Now that everything is set up, it's time to run your data pipeline!
+
+Now that everything is set up, it's time to run your data pipeline.
 
 - In the Airflow UI, go to the "DAGs" section.
-- Local and Enable `elt_dag` and `dbt_tag` dags in UI.
-- click on "Trigger DAG" of `elt_dag` under the "Actions" column.
+- Enable `elt_dag` and `dbt_dag` in the UI.
+- Trigger `elt_dag` manually from the "Actions" column.
 
-This will initiate the complete data pipeline, starting with the Airbyte sync from Faker to Teradata, followed by dbt transforming the raw data into `staging` and `agreegate` models.
+`elt_dag` is configured with `schedule=None`, so it runs only when manually triggered.
+After the Airbyte sync task completes, it triggers `dbt_dag` automatically.
+
+This initiates the complete data pipeline: Airbyte sync from Faker to Teradata, then dbt models/tests in the `ecommerce` path.
 
 - Confirm the sync status in the Airbyte UI.
-- After dbt jobs completion, check the Teradata to see the newly created views and tables in the specified schema. This can be done by using Teradata Studio or other database client UI tools.
+- After dbt completes, check Teradata for updated `staging` and aggregate outputs.
 
-Congratulations! You've successfully run an end-to-end workflow with Airflow, dbt and Airbyte. 🎉
+Congratulations! You've successfully run an end-to-end workflow with Airflow, dbt, and Airbyte. 🎉
 
 ## Next Steps
 
-Once you've gone through the steps above, you should have a working Airbyte, dbt and Airflow (ADA) Stack with Teradata. You can use this as a starting point for your project, and adapt it to your needs.
+Once you've gone through the steps above, you should have a working Airbyte, dbt, and Airflow (ADA) stack with Teradata. You can use this as a starting point for your project and adapt it to your needs.
 
 
 ## Troubleshooting

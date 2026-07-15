@@ -13,7 +13,7 @@ from dbt_config import project_config, profile_config
 @dag(
     dag_id="elt_dag",
     start_date=datetime(2023, 10, 1),
-    schedule="@daily",
+    schedule=None,
     tags=["airbyte", "dbt", "teradata", "ecommerce"],
     catchup=False,
 )
@@ -25,7 +25,7 @@ def extract_and_transform():
     extract_data = AirbyteTriggerSyncOperator(
         task_id="trigger_airbyte_faker_to_teradata",
         airbyte_conn_id="airbyte_connection",
-        connection_id="#######", # Update with your Airbyte connection ID
+        connection_id="0011dfdb-4090-41e1-927c-bca3b1f7489e", # Update with your Airbyte connection ID
         asynchronous=False,
         timeout=3600,
         wait_seconds=3
