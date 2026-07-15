@@ -1,13 +1,13 @@
 select
-    CAST (_airbyte_data.JSONExtractValue('$.id')  AS int)  as id,
-    CAST (_airbyte_data.JSONExtractValue('$.gender')   AS VARCHAR(50)) as gender,
-     CAST (_airbyte_data.JSONExtractValue('$.academic_degree')    AS VARCHAR(50))  as academic_degree,
-     CAST (_airbyte_data.JSONExtractValue('$.title')  AS VARCHAR(200)) as _title,
-	 CAST (_airbyte_data.JSONExtractValue('$.nationality')  AS VARCHAR(50)) as nationality,	 
-	 CAST (_airbyte_data.JSONExtractValue('$.age')  AS int) as age,
-	 CAST (_airbyte_data.JSONExtractValue('$.name')  AS VARCHAR(200)) as name,
-	 CAST (_airbyte_data.JSONExtractValue('$.email')  AS VARCHAR(200)) as email,
-	 CAST (_airbyte_data.JSONExtractValue('$.created_at')  AS timestamp) as created_at,
-	 CAST (_airbyte_data.JSONExtractValue('$.updated_at')  AS timestamp) as updated_at,
-    _airbyte_emitted_at as _airbyte_extracted_at
-from {{ source('faker', '_airbyte_raw_users') }} as table_alias
+    CAST(id AS int) as id,
+    CAST(gender AS VARCHAR(50)) as gender,
+    CAST(academic_degree AS VARCHAR(50)) as academic_degree,
+	CAST("title" AS VARCHAR(200)) as _title,
+	CAST(nationality AS VARCHAR(50)) as nationality,
+	CAST(age AS int) as age,
+	CAST(name AS VARCHAR(200)) as name,
+	CAST(email AS VARCHAR(200)) as email,
+	CAST(created_at AS timestamp) as created_at,
+	CAST(updated_at AS timestamp) as updated_at,
+    CAST(_airbyte_extracted_at AS timestamp) as _airbyte_extracted_at
+from {{ source('sources_ecommerce', 'users') }} as table_alias

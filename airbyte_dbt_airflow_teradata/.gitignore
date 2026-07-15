@@ -1,4 +1,5 @@
 
+.env
 .idea/airbyte_dbt_airflow_teradata.iml
 .idea/inspectionProfiles/profiles_settings.xml
 .idea/misc.xml

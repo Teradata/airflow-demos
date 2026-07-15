@@ -11,7 +11,7 @@ SELECT
   p.id,
   p.make,
   p.model,
-  b.purchase_count
+  COALESCE(b.purchase_count, 0) AS purchase_count
 FROM {{ ref('stg_products') }} p
 LEFT JOIN base b ON p.id = b.product_id
 )
